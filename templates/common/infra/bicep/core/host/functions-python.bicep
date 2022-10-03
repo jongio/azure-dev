@@ -5,6 +5,7 @@ param allowedOrigins array = []
 param applicationInsightsName string = ''
 param appServicePlanId string
 param appSettings object = {}
+param functionsExtensionVersion string = '~4'
 param keyVaultName string = ''
 param linuxFxVersion string = 'PYTHON|3.8'
 param managedIdentity bool = !(empty(keyVaultName))
@@ -20,6 +21,7 @@ module functions 'functions.bicep' = {
     applicationInsightsName: applicationInsightsName
     appServicePlanId: appServicePlanId
     appSettings: appSettings
+    functionsExtensionVersion: functionsExtensionVersion
     functionsWorkerRuntime: 'python'
     keyVaultName: keyVaultName
     linuxFxVersion: linuxFxVersion
