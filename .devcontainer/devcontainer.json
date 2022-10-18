@@ -10,11 +10,41 @@
         // Prerequisites for running azd
         // https://github.com/Azure/azure-dev/wiki/Install
         "github-cli": "2.3",
-        "azure-cli": "2.38"
-    }, 
+        "azure-cli": "2.38",
+        "dotnet": "6.0",
+        "docker-from-docker": "20.10",
+        "java": "17.0",
+        "node": {
+            "version": "16",
+            "nodeGypDependencies": false
+        },
+        "ghcr.io/devcontainers/features/terraform:1": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "1.18"
+        },
+    },
     "extensions": [
         "redhat.vscode-yaml",
         "streetsidesoftware.code-spell-checker",
-        "golang.go"
-    ]
+        "golang.go",
+        "ms-azuretools.azure-dev",
+        "ms-azuretools.vscode-bicep",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.vscode-node-azure-pack",
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "vscjava.vscode-java-pack",
+        "ms-vscode.js-debug",
+        "esbenp.prettier-vscode",
+        "eg2.vscode-npm-script",
+        "dbaeumer.vscode-eslint",
+        "ms-python.python"
+    ],
+    "hostRequirements": {
+        "memory": "32gb",
+        "storage": "32gb",
+        "cpus": 8
+    }
 }
