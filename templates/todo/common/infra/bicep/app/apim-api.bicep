@@ -95,4 +95,4 @@ resource apiDiagnostics 'Microsoft.ApiManagement/service/apis/diagnostics@2021-1
   }
 }
 
-output SERVICE_API_URI string = '${apimService.properties.gatewayUrl}/${restApi.properties.path}'
+output SERVICE_API_URI string = '${apimService.properties.gatewayUrl}/${apiPath}'
