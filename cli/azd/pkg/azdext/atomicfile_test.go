@@ -4,6 +4,7 @@
 package azdext
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -170,6 +171,52 @@ func TestCopyFileAtomic_SourceNotFound(t *testing.T) {
 	err := CopyFileAtomic(filepath.Join(dir, "missing.txt"), filepath.Join(dir, "dst.txt"), 0)
 	if err == nil {
 		t.Error("CopyFileAtomic() with missing source = nil, want error")
+	}
+}
+
+func TestCopyFileAtomic_LargeFileStreaming(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "large-source.bin")
+	dst := filepath.Join(dir, "large-dest.bin")
+
+	const size = 12 << 20 // 12 MiB
+	chunk := bytes.Repeat([]byte("azdext-streaming-copy"), 512)
+
+	f, err := os.Create(src)
+	if err != nil {
+		t.Fatalf("Create(src) error: %v", err)
+	}
+	written := 0
+	for written < size {
+		n := size - written
+		if n > len(chunk) {
+			n = len(chunk)
+		}
+		copied, err := f.Write(chunk[:n])
+		if err != nil {
+			_ = f.Close()
+			t.Fatalf("Write(src) error: %v", err)
+		}
+		written += copied
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("Close(src) error: %v", err)
+	}
+
+	if err := CopyFileAtomic(src, dst, 0); err != nil {
+		t.Fatalf("CopyFileAtomic(large) error: %v", err)
+	}
+
+	srcData, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("ReadFile(src) error: %v", err)
+	}
+	dstData, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("ReadFile(dst) error: %v", err)
+	}
+	if !bytes.Equal(srcData, dstData) {
+		t.Fatal("large file copy mismatch")
 	}
 }
 

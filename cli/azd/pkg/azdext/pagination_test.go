@@ -481,3 +481,94 @@ func TestPager_CollectWithSSRFError(t *testing.T) {
 		t.Errorf("all = %v, want [a b] (partial results before SSRF error)", all)
 	}
 }
+
+func TestPager_CollectTruncatedByMaxPages(t *testing.T) {
+	t.Parallel()
+
+	page1 := pageJSON([]int{1, 2}, "https://example.com/api?page=2")
+	page2 := pageJSON([]int{3, 4}, "")
+
+	doer := &mockDoer{
+		responses: []*doerResponse{
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(page1)),
+				Header:     http.Header{},
+			}},
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(page2)),
+				Header:     http.Header{},
+			}},
+		},
+	}
+
+	pager := NewPager[int](doer, "https://example.com/api?page=1", &PagerOptions{MaxPages: 1})
+	all, err := pager.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect failed: %v", err)
+	}
+
+	if len(all) != 2 {
+		t.Fatalf("len(all) = %d, want 2", len(all))
+	}
+	if !pager.Truncated() {
+		t.Fatal("expected Truncated() = true when MaxPages stops collection early")
+	}
+}
+
+func TestPager_CollectTruncatedByMaxItems(t *testing.T) {
+	t.Parallel()
+
+	page := pageJSON([]string{"a", "b", "c"}, "")
+	doer := &mockDoer{
+		responses: []*doerResponse{
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(page)),
+				Header:     http.Header{},
+			}},
+		},
+	}
+
+	pager := NewPager[string](doer, "https://example.com/api", &PagerOptions{MaxItems: 2})
+	all, err := pager.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect failed: %v", err)
+	}
+
+	if len(all) != 2 {
+		t.Fatalf("len(all) = %d, want 2", len(all))
+	}
+	if !pager.Truncated() {
+		t.Fatal("expected Truncated() = true when MaxItems truncates page data")
+	}
+}
+
+func TestPager_CollectNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	page := pageJSON([]string{"x", "y"}, "")
+	doer := &mockDoer{
+		responses: []*doerResponse{
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(page)),
+				Header:     http.Header{},
+			}},
+		},
+	}
+
+	pager := NewPager[string](doer, "https://example.com/api", &PagerOptions{MaxPages: 10, MaxItems: 10})
+	all, err := pager.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect failed: %v", err)
+	}
+
+	if len(all) != 2 {
+		t.Fatalf("len(all) = %d, want 2", len(all))
+	}
+	if pager.Truncated() {
+		t.Fatal("expected Truncated() = false when all data is collected")
+	}
+}

@@ -115,12 +115,43 @@ func CopyFileAtomic(src, dst string, perm os.FileMode) error {
 		}
 	}
 
-	data, err := io.ReadAll(srcFile)
-	if err != nil {
-		return fmt.Errorf("azdext.CopyFileAtomic: read source: %w", err)
+	dir := filepath.Dir(dst)
+	if _, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: target directory: %w", err)
 	}
 
-	return WriteFileAtomic(dst, data, perm)
+	tmp, err := os.CreateTemp(dir, ".azdext-atomic-*")
+	if err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	success := false
+	defer func() {
+		if !success {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, srcFile); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: copy source: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: sync: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: close: %w", err)
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: chmod: %w", err)
+	}
+	if err := osutil.Rename(context.Background(), tmpPath, dst); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: rename: %w", err)
+	}
+
+	success = true
+	return nil
 }
 
 // BackupFile creates a backup copy of path at path+suffix using atomic copy.

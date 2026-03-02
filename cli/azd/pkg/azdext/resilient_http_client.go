@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"time"
@@ -128,6 +129,14 @@ func (rc *ResilientClient) Do(ctx context.Context, method, url string, body io.R
 		return nil, errors.New("azdext.ResilientClient.Do: context must not be nil")
 	}
 
+	if body != nil && rc.opts.MaxRetries > 0 {
+		if _, ok := body.(io.ReadSeeker); !ok {
+			return nil, errors.New(
+				"azdext.ResilientClient.Do: request body does not implement io.ReadSeeker; " +
+					"retries require a seekable body (use bytes.NewReader or strings.NewReader)")
+		}
+	}
+
 	var lastErr error
 	var retryAfterOverride time.Duration
 
@@ -150,12 +159,7 @@ func (rc *ResilientClient) Do(ctx context.Context, method, url string, body io.R
 
 			// Reset body for retry — require io.ReadSeeker for non-nil bodies.
 			if body != nil {
-				seeker, ok := body.(io.ReadSeeker)
-				if !ok {
-					return nil, errors.New(
-						"azdext.ResilientClient.Do: request body does not implement io.ReadSeeker; " +
-							"retries require a seekable body (use bytes.NewReader or strings.NewReader)")
-				}
+				seeker := body.(io.ReadSeeker)
 				if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 					return nil, fmt.Errorf("azdext.ResilientClient.Do: failed to reset request body: %w", err)
 				}
@@ -237,6 +241,11 @@ func (rc *ResilientClient) applyAuth(ctx context.Context, req *http.Request) err
 // backoff computes the delay for a given attempt using exponential backoff.
 func (rc *ResilientClient) backoff(attempt int) time.Duration {
 	delay := time.Duration(float64(rc.opts.InitialDelay) * math.Pow(2, float64(attempt-1)))
+	if delay > rc.opts.MaxDelay {
+		delay = rc.opts.MaxDelay
+	}
+	jitter := 0.8 + rand.Float64()*0.4
+	delay = time.Duration(float64(delay) * jitter)
 	if delay > rc.opts.MaxDelay {
 		delay = rc.opts.MaxDelay
 	}

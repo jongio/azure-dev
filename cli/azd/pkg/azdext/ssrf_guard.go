@@ -4,6 +4,7 @@
 package azdext
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -173,8 +174,21 @@ func (g *SSRFGuard) OnBlocked(fn func(reason, detail string)) *SSRFGuard {
 // Returns nil if the URL is allowed, or a [*SSRFError] describing the violation.
 func (g *SSRFGuard) Check(rawURL string) error {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	err := g.checkCore(rawURL)
+	onBlocked := g.onBlocked
+	g.mu.RUnlock()
 
+	if err != nil && onBlocked != nil {
+		var ssrfErr *SSRFError
+		if errors.As(err, &ssrfErr) {
+			onBlocked(ssrfErr.Reason, ssrfErr.Detail)
+		}
+	}
+
+	return err
+}
+
+func (g *SSRFGuard) checkCore(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return g.blocked(truncateValue(rawURL, 200), "invalid_url", "URL parsing failed: "+err.Error())
@@ -243,11 +257,8 @@ func (g *SSRFGuard) Check(rawURL string) error {
 	return nil
 }
 
-// blocked creates an SSRFError and invokes the onBlocked callback.
+// blocked creates an SSRFError.
 func (g *SSRFGuard) blocked(urlStr, reason, detail string) *SSRFError {
-	if g.onBlocked != nil {
-		g.onBlocked(reason, detail)
-	}
 	return &SSRFError{URL: urlStr, Reason: reason, Detail: detail}
 }
 
