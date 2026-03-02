@@ -131,7 +131,9 @@ func (r *KeyVaultResolver) Resolve(ctx context.Context, ref string) (string, err
 
 	resp, err := client.GetSecret(ctx, parsed.SecretName, "", nil)
 	if err != nil {
-		reason := ResolveReasonAccessDenied
+		// Default to ServiceError for non-HTTP errors (network timeout, DNS
+		// failure, etc.). AccessDenied is only used for 401/403 status codes.
+		reason := ResolveReasonServiceError
 
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) {

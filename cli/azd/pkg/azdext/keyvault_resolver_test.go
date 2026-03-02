@@ -421,9 +421,10 @@ func TestResolve_NonResponseError(t *testing.T) {
 		t.Fatalf("error type = %T, want *KeyVaultResolveError", err)
 	}
 
-	// Non-ResponseError defaults to access_denied
-	if resolveErr.Reason != ResolveReasonAccessDenied {
-		t.Errorf("Reason = %v, want %v", resolveErr.Reason, ResolveReasonAccessDenied)
+	// Non-ResponseError defaults to service_error (not access_denied),
+	// since network/DNS/timeout errors are not auth issues.
+	if resolveErr.Reason != ResolveReasonServiceError {
+		t.Errorf("Reason = %v, want %v", resolveErr.Reason, ResolveReasonServiceError)
 	}
 }
 
