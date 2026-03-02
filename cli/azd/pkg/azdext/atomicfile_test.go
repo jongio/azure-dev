@@ -47,7 +47,7 @@ func TestWriteFileAtomic_Overwrite(t *testing.T) {
 	path := filepath.Join(dir, "test.txt")
 
 	// Write initial content.
-	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("old"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestCopyFileAtomic(t *testing.T) {
 	dst := filepath.Join(dir, "dest.txt")
 	data := []byte("copy me atomically")
 
-	if err := os.WriteFile(src, data, 0o644); err != nil {
+	if err := os.WriteFile(src, data, 0o600); err != nil {
 		t.Fatalf("WriteFile(src) error: %v", err)
 	}
 
@@ -182,7 +182,7 @@ func TestBackupFile_CreatesBackup(t *testing.T) {
 	path := filepath.Join(dir, "config.yaml")
 	data := []byte("config: value")
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
@@ -206,7 +206,7 @@ func TestBackupFile_CreatesBackup(t *testing.T) {
 func TestBackupFile_DefaultSuffix(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "data.json")
-	if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 

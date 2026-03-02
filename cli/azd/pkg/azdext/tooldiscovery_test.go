@@ -4,6 +4,7 @@
 package azdext
 
 import (
+	"errors"
 	"os"
 	"runtime"
 	"strings"
@@ -227,9 +228,5 @@ func TestNormalizePATHEntry(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func isToolsNotFoundError(err error, target **ToolsNotFoundError) bool {
-	tnf, ok := err.(*ToolsNotFoundError)
-	if ok {
-		*target = tnf
-	}
-	return ok
+	return errors.As(err, target)
 }
