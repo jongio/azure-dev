@@ -46,6 +46,11 @@ This document is the API reference for the `azdext` SDK helpers introduced in [P
   - [TokenProvider](#tokenprovider)
   - [Logger](#logger)
   - [Output](#output)
+  - [Runtime Utilities](#runtime-utilities)
+    - [Shell Helpers](#shell-helpers)
+    - [Tool Discovery Helpers](#tool-discovery-helpers)
+    - [Interactive/TUI Helpers](#interactivetui-helpers)
+    - [Atomic File Helpers](#atomic-file-helpers)
 - [Error Handling](#error-handling)
   - [LocalError](#localerror)
   - [ServiceError](#serviceerror)
@@ -597,6 +602,45 @@ Format-aware output (text or JSON):
 | `Message(fmt, args...)` | Print plain text. |
 | `JSON(data)` | Marshal and print JSON. |
 | `Table(headers, rows)` | Print a formatted table. |
+
+### Runtime Utilities
+
+These helpers are intended to remove common extension boilerplate for shell execution, tool checks, TTY detection, and safe file writes.
+
+#### Shell Helpers
+
+| API | Description |
+|-----|-------------|
+| `DetectShell()` | Detects the current shell using `SHELL`, `PSModulePath`, `ComSpec`, then platform defaults. |
+| `ShellCommand(ctx, script)` | Builds an `exec.Cmd` using detected shell conventions (`cmd /C`, `pwsh -Command`, `<shell> -c`). |
+| `ShellCommandWith(ctx, info, script)` | Same as `ShellCommand` but uses explicit `ShellInfo` for deterministic behavior/testing. |
+| `IsInteractiveTerminal(f)` / `IsStdinTerminal()` / `IsStdoutTerminal()` | Terminal detection helpers. |
+
+#### Tool Discovery Helpers
+
+| API | Description |
+|-----|-------------|
+| `LookupTool(name)` | Looks up tools on `PATH` and also checks the current project directory for local wrappers (for example `./mvnw`). |
+| `LookupTools(names...)` | Batch lookup for multiple tools. |
+| `RequireTools(names...)` | Returns a typed error when required tools are missing. |
+| `PrependPATH` / `AppendPATH` / `PATHContains` | Cross-platform `PATH` mutation and detection helpers. |
+
+#### Interactive/TUI Helpers
+
+| API | Description |
+|-----|-------------|
+| `DetectInteractive()` | Detects TTY mode (`full` / `limited` / `none`), `AZD_NO_PROMPT`, CI, and known agent environments. |
+| `InteractiveInfo.CanPrompt()` | Safe prompt gate (`stdin/stdout tty`, not no-prompt, not CI, not agent). |
+| `InteractiveInfo.CanColorize()` | Color output gate honoring `FORCE_COLOR` and `NO_COLOR`. |
+
+#### Atomic File Helpers
+
+| API | Description |
+|-----|-------------|
+| `WriteFileAtomic(path, data, perm)` | Writes via temp-file + atomic rename, with Windows rename retry behavior. |
+| `CopyFileAtomic(src, dst, perm)` | Atomic copy via `WriteFileAtomic`. |
+| `BackupFile(path, suffix)` | Creates an atomic backup file (`.bak` by default). |
+| `EnsureDir(dir, perm)` | Convenience wrapper around `os.MkdirAll` with extension-prefixed errors. |
 
 ---
 
