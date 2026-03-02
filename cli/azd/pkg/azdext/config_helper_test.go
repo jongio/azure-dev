@@ -965,3 +965,13 @@ func TestConfigReason_String(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePath_InvalidCharacters(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"extensions/myext", "extensions myext", ".badstart"} {
+		if err := validatePath(path); err == nil {
+			t.Errorf("validatePath(%q) expected error, got nil", path)
+		}
+	}
+}
