@@ -173,8 +173,23 @@ func (g *SSRFGuard) OnBlocked(fn func(reason, detail string)) *SSRFGuard {
 // Returns nil if the URL is allowed, or a [*SSRFError] describing the violation.
 func (g *SSRFGuard) Check(rawURL string) error {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
+	fn := g.onBlocked
+	ssrfErr := g.checkCore(rawURL)
+	g.mu.RUnlock()
 
+	if ssrfErr != nil {
+		if fn != nil {
+			fn(ssrfErr.Reason, ssrfErr.Detail)
+		}
+		return ssrfErr
+	}
+
+	return nil
+}
+
+// checkCore performs URL validation without acquiring the lock or invoking
+// the onBlocked callback. Callers must hold g.mu (at least RLock).
+func (g *SSRFGuard) checkCore(rawURL string) *SSRFError {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return g.blocked(truncateValue(rawURL, 200), "invalid_url", "URL parsing failed: "+err.Error())
@@ -251,11 +266,8 @@ func (g *SSRFGuard) Check(rawURL string) error {
 	return nil
 }
 
-// blocked creates an SSRFError and invokes the onBlocked callback.
+// blocked creates an SSRFError.
 func (g *SSRFGuard) blocked(urlStr, reason, detail string) *SSRFError {
-	if g.onBlocked != nil {
-		g.onBlocked(reason, detail)
-	}
 	return &SSRFError{URL: urlStr, Reason: reason, Detail: detail}
 }
 
@@ -263,7 +275,7 @@ func (g *SSRFGuard) blocked(urlStr, reason, detail string) *SSRFError {
 // network categories. It also extracts embedded IPv4 from IPv6 encoding
 // variants (IPv4-compatible, IPv4-translated RFC 2765) that Go's net.IP
 // methods do not classify.
-func (g *SSRFGuard) checkIPForSSRF(ip net.IP, originalHost, rawURL string) error {
+func (g *SSRFGuard) checkIPForSSRF(ip net.IP, originalHost, rawURL string) *SSRFError {
 	if reason, detail, isBlocked := ssrfCheckIP(ip, originalHost, g.blockedCIDRs, g.blockPrivate); isBlocked {
 		return g.blocked(truncateValue(rawURL, 200), reason, detail)
 	}

@@ -51,6 +51,7 @@ type Pager[T any] struct {
 	client     HTTPDoer
 	nextURL    string
 	done       bool
+	truncated  bool
 	opts       PagerOptions
 	originHost string // host of the initial URL for SSRF protection
 	pageCount  int    // number of pages fetched so far
@@ -137,6 +138,11 @@ func NewPagerFromHTTPClient[T any](client *http.Client, firstURL string, opts *P
 // More reports whether there are more pages to fetch.
 func (p *Pager[T]) More() bool {
 	return !p.done && p.nextURL != ""
+}
+
+// Truncated reports whether the most recent Collect call stopped early due to MaxPages or MaxItems limits.
+func (p *Pager[T]) Truncated() bool {
+	return p.truncated
 }
 
 // NextPage fetches the next page of results. Returns an error if the request
@@ -235,6 +241,7 @@ func (p *Pager[T]) validateNextLink(nextLink string) error {
 // the page data is included in the returned slice before returning the error.
 func (p *Pager[T]) Collect(ctx context.Context) ([]T, error) {
 	var all []T
+	p.truncated = false
 
 	maxPages := p.opts.MaxPages
 	if maxPages <= 0 {
@@ -255,11 +262,13 @@ func (p *Pager[T]) Collect(ctx context.Context) ([]T, error) {
 			if len(all) > p.opts.MaxItems {
 				all = all[:p.opts.MaxItems]
 			}
+			p.truncated = true
 			break
 		}
 
 		// Enforce MaxPages: stop after collecting the configured number of pages.
 		if p.pageCount >= maxPages {
+			p.truncated = true
 			break
 		}
 	}

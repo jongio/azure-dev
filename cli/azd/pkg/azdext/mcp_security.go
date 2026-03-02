@@ -104,10 +104,13 @@ func (p *MCPSecurityPolicy) OnBlocked(fn func(violation string)) *MCPSecurityPol
 }
 
 // notifyBlocked invokes the onBlocked callback if registered.
-// Must be called while the read lock is held (or after upgrading to a write lock).
 func (p *MCPSecurityPolicy) notifyBlocked(violation string) {
-	if p.onBlocked != nil {
-		p.onBlocked(violation)
+	p.mu.RLock()
+	onBlocked := p.onBlocked
+	p.mu.RUnlock()
+
+	if onBlocked != nil {
+		onBlocked(violation)
 	}
 }
 
@@ -125,8 +128,17 @@ func isLocalhostHost(host string) bool {
 // Returns an error describing the violation, or nil if allowed.
 func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
+	err := p.checkURLCore(rawURL)
+	p.mu.RUnlock()
 
+	if err != nil {
+		p.notifyBlocked(err.Error())
+	}
+
+	return err
+}
+
+func (p *MCPSecurityPolicy) checkURLCore(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
@@ -140,21 +152,15 @@ func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 		// always allowed
 	case "http":
 		if p.requireHTTPS && !isLocalhostHost(host) {
-			err := fmt.Errorf("HTTPS required: %s", rawURL)
-			p.notifyBlocked(err.Error())
-			return err
+			return fmt.Errorf("HTTPS required: %s", rawURL)
 		}
 	default:
-		err := fmt.Errorf("scheme not allowed: %q (only http and https are permitted)", u.Scheme)
-		p.notifyBlocked(err.Error())
-		return err
+		return fmt.Errorf("scheme not allowed: %q (only http and https are permitted)", u.Scheme)
 	}
 
 	// Check if the host is directly blocked.
 	if p.blockedHosts[strings.ToLower(host)] {
-		err := fmt.Errorf("blocked host: %s", host)
-		p.notifyBlocked(err.Error())
-		return err
+		return fmt.Errorf("blocked host: %s", host)
 	}
 
 	// If the host is an IP literal, check it directly against blocked CIDRs.
@@ -163,13 +169,10 @@ func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 		// IPv6 forms like ::ffff:169.254.169.254 that bypass string matching.
 		if normalizedIP := ip.String(); normalizedIP != host {
 			if p.blockedHosts[strings.ToLower(normalizedIP)] {
-				blockErr := fmt.Errorf("blocked host: %s (normalized: %s)", host, normalizedIP)
-				p.notifyBlocked(blockErr.Error())
-				return blockErr
+				return fmt.Errorf("blocked host: %s (normalized: %s)", host, normalizedIP)
 			}
 		}
 		if err := p.checkIP(ip, host); err != nil {
-			p.notifyBlocked(err.Error())
 			return err
 		}
 	} else {
@@ -178,19 +181,14 @@ func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 		if err != nil {
 			// Fail-closed: if DNS resolution fails, block the request.
 			// This prevents SSRF bypasses via DNS rebinding or transient failures.
-			blockErr := fmt.Errorf("DNS resolution failed for host %s: %w", host, err)
-			p.notifyBlocked(blockErr.Error())
-			return blockErr
+			return fmt.Errorf("DNS resolution failed for host %s: %w", host, err)
 		}
 		for _, addr := range addrs {
 			if p.blockedHosts[strings.ToLower(addr)] {
-				err := fmt.Errorf("blocked host: %s (resolved from %s)", addr, host)
-				p.notifyBlocked(err.Error())
-				return err
+				return fmt.Errorf("blocked host: %s (resolved from %s)", addr, host)
 			}
 			if ip := net.ParseIP(addr); ip != nil {
 				if err := p.checkIP(ip, host); err != nil {
-					p.notifyBlocked(err.Error())
 					return err
 				}
 			}
@@ -219,17 +217,24 @@ func (p *MCPSecurityPolicy) checkIP(ip net.IP, originalHost string) error {
 // /proc/self/fd or fstat before processing.
 func (p *MCPSecurityPolicy) CheckPath(path string) error {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
+	err := p.checkPathCore(path)
+	p.mu.RUnlock()
 
+	if err != nil {
+		p.notifyBlocked(err.Error())
+	}
+
+	return err
+}
+
+func (p *MCPSecurityPolicy) checkPathCore(path string) error {
 	if len(p.allowedBasePaths) == 0 {
 		return nil
 	}
 
 	// Reject paths containing ".." before any cleaning to catch obvious traversal attempts.
 	if strings.Contains(path, "..") {
-		err := fmt.Errorf("path traversal detected: %s", path)
-		p.notifyBlocked(err.Error())
-		return err
+		return fmt.Errorf("path traversal detected: %s", path)
 	}
 
 	cleaned := filepath.Clean(path)
@@ -268,9 +273,7 @@ func (p *MCPSecurityPolicy) CheckPath(path string) error {
 		}
 	}
 
-	err = fmt.Errorf("path %s is not within any allowed base directory", path)
-	p.notifyBlocked(err.Error())
-	return err
+	return fmt.Errorf("path %s is not within any allowed base directory", path)
 }
 
 // IsHeaderBlocked checks if a header name is in the redacted set.
