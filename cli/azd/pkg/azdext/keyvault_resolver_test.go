@@ -151,12 +151,12 @@ func TestParseSecretReference_EmptyComponent(t *testing.T) {
 	t.Parallel()
 
 	cases := []string{
-		"akvs:///vault/secret",     // empty subscription
-		"akvs://sub//secret",       // empty vault
-		"akvs://sub/vault/",        // empty secret
-		"akvs://  /vault/secret",   // whitespace subscription
-		"akvs://sub/  /secret",     // whitespace vault
-		"akvs://sub/vault/   ",     // whitespace secret
+		"akvs:///vault/secret",   // empty subscription
+		"akvs://sub//secret",     // empty vault
+		"akvs://sub/vault/",      // empty secret
+		"akvs://  /vault/secret", // whitespace subscription
+		"akvs://sub/  /secret",   // whitespace vault
+		"akvs://sub/vault/   ",   // whitespace secret
 	}
 
 	for _, ref := range cases {
