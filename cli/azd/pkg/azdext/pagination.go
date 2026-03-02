@@ -130,7 +130,11 @@ func NewPager[T any](client HTTPDoer, firstURL string, opts *PagerOptions) *Page
 }
 
 // NewPagerFromHTTPClient creates a [Pager] backed by a standard [*http.Client].
+// If client is nil, [http.DefaultClient] is used.
 func NewPagerFromHTTPClient[T any](client *http.Client, firstURL string, opts *PagerOptions) *Pager[T] {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	return NewPager[T](&stdHTTPDoer{client: client}, firstURL, opts)
 }
 

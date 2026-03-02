@@ -208,6 +208,7 @@ func TestResolve_NilContext(t *testing.T) {
 	})
 
 	//nolint:staticcheck // intentionally testing nil context
+	//lint:ignore SA1012 intentionally testing nil context handling
 	_, err := resolver.Resolve(nil, "akvs://sub/vault/secret")
 	if err == nil {
 		t.Fatal("expected error for nil context")
@@ -514,6 +515,7 @@ func TestResolveMap_NilContext(t *testing.T) {
 	})
 
 	//nolint:staticcheck // intentionally testing nil context
+	//lint:ignore SA1012 intentionally testing nil context handling
 	_, err := resolver.ResolveMap(nil, map[string]string{"k": "v"})
 	if err == nil {
 		t.Fatal("expected error for nil context")
