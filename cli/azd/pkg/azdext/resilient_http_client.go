@@ -293,6 +293,12 @@ func retryAfterFromResponse(resp *http.Response) time.Duration {
 		}
 
 		if n, _ := strconv.Atoi(v); n > 0 {
+			// Cap parsed value before multiplication to prevent integer overflow
+			// (a crafted Retry-After header could wrap int64, bypassing maxRetryAfterDuration).
+			maxN := int(maxRetryAfterDuration / rh.units)
+			if n > maxN {
+				return maxRetryAfterDuration
+			}
 			return time.Duration(n) * rh.units
 		}
 
