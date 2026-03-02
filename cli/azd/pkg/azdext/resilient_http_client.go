@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"time"
@@ -127,6 +128,13 @@ func (rc *ResilientClient) Do(ctx context.Context, method, url string, body io.R
 	if ctx == nil {
 		return nil, errors.New("azdext.ResilientClient.Do: context must not be nil")
 	}
+	if body != nil && rc.opts.MaxRetries > 0 {
+		if _, ok := body.(io.ReadSeeker); !ok {
+			return nil, errors.New(
+				"azdext.ResilientClient.Do: request body does not implement io.ReadSeeker; " +
+					"retries require a seekable body (use bytes.NewReader or strings.NewReader)")
+		}
+	}
 
 	var lastErr error
 	var retryAfterOverride time.Duration
@@ -241,7 +249,8 @@ func (rc *ResilientClient) backoff(attempt int) time.Duration {
 		delay = rc.opts.MaxDelay
 	}
 
-	return delay
+	jitter := 0.5 + rand.Float64()*0.5
+	return time.Duration(float64(delay) * jitter)
 }
 
 // isRetryable returns true for status codes that indicate a transient failure.
