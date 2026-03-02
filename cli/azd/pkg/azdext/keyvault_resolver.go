@@ -8,10 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
+	"github.com/azure/azure-dev/cli/azd/pkg/keyvault"
 )
 
 // KeyVaultResolver resolves Azure Key Vault secret references for extension
@@ -207,42 +209,52 @@ type SecretReference struct {
 	SecretName string
 }
 
-const secretScheme = "akvs://"
-
 // IsSecretReference reports whether s uses the akvs:// scheme.
 func IsSecretReference(s string) bool {
-	return strings.HasPrefix(s, secretScheme)
+	return keyvault.IsAzureKeyVaultSecret(s)
 }
+
+// vaultNameRe validates Azure Key Vault names per Azure naming rules:
+//   - 3–24 characters
+//   - starts with a letter
+//   - contains only alphanumeric and hyphens
+//   - does not end with a hyphen
+var vaultNameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{1,22}[a-zA-Z0-9]$`)
 
 // ParseSecretReference parses an akvs:// URI into its components.
 //
 // Expected format: akvs://<subscription-id>/<vault-name>/<secret-name>
+//
+// The vault name is validated against Azure Key Vault naming rules (3–24
+// characters, starts with letter, alphanumeric and hyphens only, does not
+// end with a hyphen).
 func ParseSecretReference(ref string) (*SecretReference, error) {
-	if !IsSecretReference(ref) {
-		return nil, fmt.Errorf("not an akvs:// reference: %s", ref)
+	parsed, err := keyvault.ParseAzureKeyVaultSecret(ref)
+	if err != nil {
+		return nil, err
 	}
 
-	body := strings.TrimPrefix(ref, secretScheme)
-	parts := strings.Split(body, "/")
-
-	if len(parts) != 3 {
+	if strings.TrimSpace(parsed.SubscriptionId) == "" {
+		return nil, fmt.Errorf("invalid akvs:// reference %q: subscription-id must not be empty", ref)
+	}
+	if strings.TrimSpace(parsed.VaultName) == "" {
+		return nil, fmt.Errorf("invalid akvs:// reference %q: vault-name must not be empty", ref)
+	}
+	if !vaultNameRe.MatchString(parsed.VaultName) {
 		return nil, fmt.Errorf(
-			"invalid akvs:// reference %q: expected format %s<subscription-id>/<vault-name>/<secret-name>",
-			ref, secretScheme,
+			"invalid akvs:// reference %q: vault name %q must be 3-24 characters, "+
+				"start with a letter, and contain only alphanumeric characters and non-consecutive hyphens",
+			ref, parsed.VaultName,
 		)
 	}
-
-	for i, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			labels := []string{"subscription-id", "vault-name", "secret-name"}
-			return nil, fmt.Errorf("invalid akvs:// reference %q: %s must not be empty", ref, labels[i])
-		}
+	if strings.TrimSpace(parsed.SecretName) == "" {
+		return nil, fmt.Errorf("invalid akvs:// reference %q: secret-name must not be empty", ref)
 	}
 
 	return &SecretReference{
-		SubscriptionID: parts[0],
-		VaultName:      parts[1],
-		SecretName:     parts[2],
+		SubscriptionID: parsed.SubscriptionId,
+		VaultName:      parsed.VaultName,
+		SecretName:     parsed.SecretName,
 	}, nil
 }
 
