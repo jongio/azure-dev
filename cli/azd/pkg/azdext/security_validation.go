@@ -83,7 +83,10 @@ func ValidateServiceName(name string) error {
 //   - labels separated by '.'
 //   - each label: starts and ends with alphanumeric, may contain '-', 1–63 chars
 //   - total length <= 253 characters
-var hostnameRe = regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
+var hostnameRe = regexp.MustCompile(
+	`^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?` +
+		`(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`,
+)
 
 // ValidateHostname checks that hostname conforms to RFC 952/1123.
 //
@@ -115,9 +118,9 @@ func ValidateHostname(hostname string) error {
 
 	if !hostnameRe.MatchString(hostname) {
 		return &ValidationError{
-			Field:   "hostname",
-			Value:   truncateValue(hostname, 64),
-			Rule:    "format",
+			Field: "hostname",
+			Value: truncateValue(hostname, 64),
+			Rule:  "format",
 			Message: "hostname must conform to RFC 952/1123 " +
 				"(labels: alphanumeric start/end, may contain '-', 1-63 chars each)",
 		}
@@ -182,10 +185,10 @@ func ValidateScriptName(name string) error {
 
 // containerEnvVars maps environment variables to the container runtime they indicate.
 var containerEnvVars = map[string]string{
-	"CODESPACES":             "codespaces",
+	"CODESPACES":              "codespaces",
 	"KUBERNETES_SERVICE_HOST": "kubernetes",
-	"REMOTE_CONTAINERS":      "devcontainer",
-	"REMOTE_CONTAINERS_IPC":  "devcontainer",
+	"REMOTE_CONTAINERS":       "devcontainer",
+	"REMOTE_CONTAINERS_IPC":   "devcontainer",
 }
 
 // IsContainerEnvironment reports whether the current process is running inside
