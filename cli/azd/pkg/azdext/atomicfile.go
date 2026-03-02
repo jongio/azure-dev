@@ -4,10 +4,13 @@
 package azdext
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/azure/azure-dev/cli/azd/pkg/osutil"
 )
 
 // ---------------------------------------------------------------------------
@@ -82,7 +85,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	}
 
 	// Atomic rename into place.
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := osutil.Rename(context.Background(), tmpPath, path); err != nil {
 		return fmt.Errorf("azdext.WriteFileAtomic: rename: %w", err)
 	}
 
