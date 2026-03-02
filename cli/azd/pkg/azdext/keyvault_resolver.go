@@ -38,7 +38,12 @@ type secretClientFactory func(vaultURL string, credential azcore.TokenCredential
 
 // secretGetter abstracts the Azure SDK secret client's GetSecret method.
 type secretGetter interface {
-	GetSecret(ctx context.Context, name string, version string, options *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error)
+	GetSecret(
+		ctx context.Context,
+		name string,
+		version string,
+		options *azsecrets.GetSecretOptions,
+	) (azsecrets.GetSecretResponse, error)
 }
 
 // KeyVaultResolverOptions configures a [KeyVaultResolver].
@@ -141,7 +146,12 @@ func (r *KeyVaultResolver) Resolve(ctx context.Context, ref string) (string, err
 		return "", &KeyVaultResolveError{
 			Reference: ref,
 			Reason:    reason,
-			Err:       fmt.Errorf("failed to retrieve secret %q from vault %q: %w", parsed.SecretName, parsed.VaultName, err),
+			Err: fmt.Errorf(
+				"failed to retrieve secret %q from vault %q: %w",
+				parsed.SecretName,
+				parsed.VaultName,
+				err,
+			),
 		}
 	}
 
