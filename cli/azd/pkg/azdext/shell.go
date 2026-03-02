@@ -136,6 +136,7 @@ func ShellCommandWith(ctx context.Context, info ShellInfo, script string) (*exec
 		if shell == "" {
 			shell = "cmd.exe"
 		}
+		// #nosec G204 -- executing caller-provided scripts is the purpose of this helper.
 		return exec.CommandContext(ctx, shell, "/C", script), nil
 
 	case ShellTypePowerShell:
@@ -150,6 +151,7 @@ func ShellCommandWith(ctx context.Context, info ShellInfo, script string) (*exec
 				shell = "pwsh"
 			}
 		}
+		// #nosec G204 -- executing caller-provided scripts is the purpose of this helper.
 		return exec.CommandContext(ctx, shell, "-NoProfile", "-NonInteractive", "-Command", script), nil
 
 	case ShellTypeBash, ShellTypeSh, ShellTypeZsh, ShellTypeFish:
@@ -157,6 +159,7 @@ func ShellCommandWith(ctx context.Context, info ShellInfo, script string) (*exec
 		if shell == "" {
 			shell = string(info.Type)
 		}
+		// #nosec G204 -- executing caller-provided scripts is the purpose of this helper.
 		return exec.CommandContext(ctx, shell, "-c", script), nil
 
 	case ShellTypeUnknown:
