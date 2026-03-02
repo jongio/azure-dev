@@ -243,7 +243,7 @@ func ParseSecretReference(ref string) (*SecretReference, error) {
 	if !vaultNameRe.MatchString(parsed.VaultName) {
 		return nil, fmt.Errorf(
 			"invalid akvs:// reference %q: vault name %q must be 3-24 characters, "+
-				"start with a letter, and contain only alphanumeric characters and non-consecutive hyphens",
+				"start with a letter, end with alphanumeric, and contain only alphanumeric characters and hyphens",
 			ref, parsed.VaultName,
 		)
 	}

@@ -5,6 +5,8 @@ package azdext
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,10 +21,32 @@ func TestMCPSecurityCheckURL_BlocksMetadataEndpoints(t *testing.T) {
 		"http://fd00:ec2::254/latest/meta-data/",
 		"http://metadata.google.internal/computeMetadata/v1/",
 		"http://100.100.100.200/latest/meta-data/",
+		// IPv4-mapped forms of metadata IPs — must be caught by IP normalization.
+		"http://[::ffff:169.254.169.254]/latest/meta-data/",
+		"http://[::ffff:100.100.100.200]/latest/meta-data/",
 	}
 	for _, u := range blocked {
 		if err := policy.CheckURL(u); err == nil {
 			t.Errorf("expected CheckURL to block metadata endpoint %s", u)
+		}
+	}
+}
+
+func TestSSRFSafeRedirect_BlocksPrivateHostnames(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		host    string
+		blocked bool
+	}{
+		{"169.254.169.254", true},
+		{"127.0.0.1", true},
+		{"10.0.0.1", true},
+	}
+	for _, tc := range tests {
+		req := &http.Request{URL: mustParseURL(t, "http://"+tc.host+"/path")}
+		err := SSRFSafeRedirect(req, nil)
+		if tc.blocked && err == nil {
+			t.Errorf("SSRFSafeRedirect(%s) = nil, want error", tc.host)
 		}
 	}
 }
@@ -334,4 +358,13 @@ func TestMCPSecurityFluentBuilder(t *testing.T) {
 	if len(policy.allowedBasePaths) != 1 {
 		t.Errorf("expected 1 base path, got %d", len(policy.allowedBasePaths))
 	}
+}
+
+func mustParseURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("mustParseURL(%q): %v", rawURL, err)
+	}
+	return u
 }

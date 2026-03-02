@@ -217,6 +217,14 @@ func (g *SSRFGuard) Check(rawURL string) error {
 
 	// Step 6: IP-based checks.
 	if ip := net.ParseIP(host); ip != nil {
+		// Check normalized IP form against blocked hosts — catches IPv4-mapped
+		// IPv6 forms like ::ffff:169.254.169.254 that bypass string matching.
+		if normalizedIP := ip.String(); normalizedIP != host {
+			if g.blockedHosts[strings.ToLower(normalizedIP)] {
+				return g.blocked(truncateValue(rawURL, 200), "blocked_host",
+					fmt.Sprintf("host %s is blocked (normalized: %s)", host, normalizedIP))
+			}
+		}
 		// Direct IP literal — check against blocked ranges.
 		return g.checkIPForSSRF(ip, host, rawURL)
 	}

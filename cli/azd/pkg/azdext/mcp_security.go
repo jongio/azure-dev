@@ -159,6 +159,15 @@ func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 
 	// If the host is an IP literal, check it directly against blocked CIDRs.
 	if ip := net.ParseIP(host); ip != nil {
+		// Check normalized IP form against blocked hosts — catches IPv4-mapped
+		// IPv6 forms like ::ffff:169.254.169.254 that bypass string matching.
+		if normalizedIP := ip.String(); normalizedIP != host {
+			if p.blockedHosts[strings.ToLower(normalizedIP)] {
+				blockErr := fmt.Errorf("blocked host: %s (normalized: %s)", host, normalizedIP)
+				p.notifyBlocked(blockErr.Error())
+				return blockErr
+			}
+		}
 		if err := p.checkIP(ip, host); err != nil {
 			p.notifyBlocked(err.Error())
 			return err
@@ -323,19 +332,47 @@ var redirectBlockedHosts = map[string]bool{
 
 // SSRFSafeRedirect is an http.Client CheckRedirect function that blocks
 // redirects to cloud metadata endpoints, private/loopback addresses, and
-// non-HTTP(S) schemes. Assign it to http.Client.CheckRedirect.
+// non-HTTP(S) schemes. Hostnames in redirect targets are resolved via DNS
+// and all resulting IPs are checked. DNS failures are treated as blocked
+// (fail-closed) to prevent bypass via DNS rebinding. Assign it to
+// http.Client.CheckRedirect.
 func SSRFSafeRedirect(req *http.Request, via []*http.Request) error {
 	host := strings.ToLower(req.URL.Hostname())
 
-	// Block known metadata endpoints.
+	// Block known metadata endpoints (string match).
 	if redirectBlockedHosts[host] {
 		return fmt.Errorf("redirect to blocked metadata host: %s", host)
 	}
 
-	// Block redirects to private/loopback IPs.
 	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
-			return fmt.Errorf("redirect to private/loopback IP: %s", host)
+		// Check normalized IP against metadata list — catches IPv4-mapped IPv6
+		// forms like [::ffff:169.254.169.254] that bypass string matching.
+		if normalizedIP := ip.String(); redirectBlockedHosts[strings.ToLower(normalizedIP)] {
+			return fmt.Errorf("redirect to blocked metadata host: %s", host)
+		}
+		if err := checkRedirectIP(ip, host); err != nil {
+			return err
+		}
+	} else {
+		// Hostname — resolve and check all IPs (fail-closed on DNS failure).
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			return fmt.Errorf(
+				"redirect to %s blocked: DNS resolution failed (fail-closed, SSRF protection)", host,
+			)
+		}
+		for _, addr := range addrs {
+			if redirectBlockedHosts[strings.ToLower(addr)] {
+				return fmt.Errorf(
+					"redirect to %s blocked: resolves to metadata endpoint %s (SSRF protection)",
+					host, addr,
+				)
+			}
+			if resolvedIP := net.ParseIP(addr); resolvedIP != nil {
+				if err := checkRedirectIP(resolvedIP, host); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -352,5 +389,14 @@ func SSRFSafeRedirect(req *http.Request, via []*http.Request) error {
 		return fmt.Errorf("stopped after %d redirects", len(via))
 	}
 
+	return nil
+}
+
+// checkRedirectIP checks whether an IP is in a private, loopback, link-local,
+// or unspecified range. Used by [SSRFSafeRedirect] to block redirect-based SSRF.
+func checkRedirectIP(ip net.IP, host string) error {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+		return fmt.Errorf("redirect to private/loopback IP %s blocked (SSRF protection, host: %s)", ip, host)
+	}
 	return nil
 }

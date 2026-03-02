@@ -609,14 +609,15 @@ func TestResilientClient_RetryAfterCapped(t *testing.T) {
 		t.Errorf("maxRetryAfterDuration = %v, should be <= 5m", maxRetryAfterDuration)
 	}
 
-	// A large Retry-After value should be capped in Do().
+	// A large Retry-After value should be capped at parse time to prevent
+	// integer overflow (crafted values could wrap int64 and bypass the cap in Do).
 	h := http.Header{}
 	h.Set("retry-after", "999999")
 	resp := &http.Response{Header: h}
 
 	got := retryAfterFromResponse(resp)
-	// retryAfterFromResponse itself doesn't cap (pure parser), but Do() caps it.
-	if got != 999999*time.Second {
-		t.Errorf("retryAfterFromResponse() = %v, want %v (capping happens in Do)", got, 999999*time.Second)
+	// retryAfterFromResponse now caps values to maxRetryAfterDuration to prevent overflow.
+	if got != maxRetryAfterDuration {
+		t.Errorf("retryAfterFromResponse() = %v, want %v (capped at parse time)", got, maxRetryAfterDuration)
 	}
 }

@@ -25,6 +25,9 @@ func TestSSRFGuard_BlocksMetadataEndpoints(t *testing.T) {
 		"http://100.100.100.200/latest/meta-data/",
 		// Case variations
 		"http://METADATA.GOOGLE.INTERNAL/computeMetadata/v1/",
+		// IPv4-mapped forms of metadata IPs — must be caught by IP normalization.
+		"http://[::ffff:169.254.169.254]/latest/meta-data/",
+		"http://[::ffff:100.100.100.200]/latest/meta-data/",
 	}
 	for _, u := range blocked {
 		if err := guard.Check(u); err == nil {
