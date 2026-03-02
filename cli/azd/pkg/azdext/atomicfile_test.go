@@ -273,3 +273,38 @@ func TestEnsureDir_DefaultPermissions(t *testing.T) {
 		t.Error("EnsureDir(perm=0) did not create a directory")
 	}
 }
+
+func TestCopyFileAtomic_LargeFileStreaming(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "large.bin")
+	dst := filepath.Join(dir, "large-copy.bin")
+
+	// Create a source file larger than a typical io.Copy buffer (32 KB).
+	// This verifies the streaming path is exercised.
+	const size = 256 * 1024 // 256 KB
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 251) // deterministic non-zero pattern
+	}
+	if err := os.WriteFile(src, data, 0o644); err != nil {
+		t.Fatalf("WriteFile(src) error: %v", err)
+	}
+
+	if err := CopyFileAtomic(src, dst, 0); err != nil {
+		t.Fatalf("CopyFileAtomic() error: %v", err)
+	}
+
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("ReadFile(dst) error: %v", err)
+	}
+	if len(got) != size {
+		t.Errorf("CopyFileAtomic() size = %d, want %d", len(got), size)
+	}
+	// Spot-check content integrity.
+	for _, idx := range []int{0, 1, size / 2, size - 1} {
+		if got[idx] != data[idx] {
+			t.Errorf("content mismatch at byte %d: got %d, want %d", idx, got[idx], data[idx])
+		}
+	}
+}

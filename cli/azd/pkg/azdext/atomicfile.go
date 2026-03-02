@@ -95,6 +95,8 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 
 // CopyFileAtomic copies src to dst atomically using the write-temp-rename
 // pattern. The destination file is never in a partially-written state.
+// The copy is streamed through a fixed-size buffer (no unbounded memory
+// allocation regardless of source file size).
 //
 // Platform behavior: see [WriteFileAtomic].
 //
@@ -115,12 +117,53 @@ func CopyFileAtomic(src, dst string, perm os.FileMode) error {
 		}
 	}
 
-	data, err := io.ReadAll(srcFile)
-	if err != nil {
-		return fmt.Errorf("azdext.CopyFileAtomic: read source: %w", err)
+	dir := filepath.Dir(dst)
+
+	// Validate that the target directory exists.
+	if _, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: target directory: %w", err)
 	}
 
-	return WriteFileAtomic(dst, data, perm)
+	// Create temp file in the same directory (same filesystem = atomic rename).
+	tmp, err := os.CreateTemp(dir, ".azdext-atomic-*")
+	if err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	// Ensure cleanup on any failure path.
+	success := false
+	defer func() {
+		if !success {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// Stream copy with fixed-size buffer — no unbounded memory allocation.
+	if _, err := io.Copy(tmp, srcFile); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: copy: %w", err)
+	}
+
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: sync: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: close: %w", err)
+	}
+
+	// Set permissions on temp file before rename.
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: chmod: %w", err)
+	}
+
+	// Atomic rename into place.
+	if err := osutil.Rename(context.Background(), tmpPath, dst); err != nil {
+		return fmt.Errorf("azdext.CopyFileAtomic: rename: %w", err)
+	}
+
+	success = true
+	return nil
 }
 
 // BackupFile creates a backup copy of path at path+suffix using atomic copy.

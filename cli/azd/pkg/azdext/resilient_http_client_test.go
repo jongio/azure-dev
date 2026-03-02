@@ -520,19 +520,20 @@ func TestResilientClient_NonSeekableBodyRetryError(t *testing.T) {
 	})
 
 	// io.NopCloser wrapping strings.NewReader is NOT an io.ReadSeeker.
+	// With upfront validation, the error is caught before any HTTP call.
 	body := io.NopCloser(strings.NewReader("payload"))
 	_, err := rc.Do(context.Background(), http.MethodPost, "https://example.com/api", body)
 	if err == nil {
-		t.Fatal("expected error for non-seekable body on retry")
+		t.Fatal("expected error for non-seekable body with retries enabled")
 	}
 
 	if !strings.Contains(err.Error(), "io.ReadSeeker") {
 		t.Errorf("error = %q, want mention of io.ReadSeeker", err.Error())
 	}
 
-	// Should have made exactly 1 attempt (first gets 503 → retry → fail on body check).
-	if attempts != 1 {
-		t.Errorf("attempts = %d, want 1 (fail before second attempt)", attempts)
+	// Should have made zero attempts — upfront check rejects before any HTTP call.
+	if attempts != 0 {
+		t.Errorf("attempts = %d, want 0 (fail fast before any request)", attempts)
 	}
 }
 
@@ -618,5 +619,95 @@ func TestResilientClient_RetryAfterCapped(t *testing.T) {
 	// retryAfterFromResponse itself doesn't cap (pure parser), but Do() caps it.
 	if got != 999999*time.Second {
 		t.Errorf("retryAfterFromResponse() = %v, want %v (capping happens in Do)", got, 999999*time.Second)
+	}
+}
+
+func TestResilientClient_BackoffJitter(t *testing.T) {
+	t.Parallel()
+
+	rc := NewResilientClient(nil, &ResilientClientOptions{
+		InitialDelay: 100 * time.Millisecond,
+		MaxDelay:     10 * time.Second,
+	})
+
+	seen := make(map[time.Duration]bool)
+	for range 20 {
+		d := rc.backoff(1)
+		seen[d] = true
+		if d < 50*time.Millisecond || d >= 100*time.Millisecond {
+			t.Errorf("backoff(1) = %v, want in [50ms, 100ms)", d)
+		}
+	}
+
+	if len(seen) < 2 {
+		t.Error("backoff jitter produced identical values across 20 calls")
+	}
+}
+
+func TestResilientClient_NonSeekableBodyFailsFast(t *testing.T) {
+	t.Parallel()
+
+	var attempts int
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		attempts++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Header:     http.Header{},
+		}, nil
+	})
+
+	rc := NewResilientClient(nil, &ResilientClientOptions{
+		Transport:    transport,
+		MaxRetries:   2,
+		InitialDelay: time.Millisecond,
+	})
+
+	body := io.NopCloser(strings.NewReader("payload"))
+	_, err := rc.Do(context.Background(), http.MethodPost, "https://example.com/api", body)
+	if err == nil {
+		t.Fatal("expected error for non-seekable body with retries enabled")
+	}
+
+	if !strings.Contains(err.Error(), "io.ReadSeeker") {
+		t.Errorf("error = %q, want mention of io.ReadSeeker", err.Error())
+	}
+
+	if attempts != 0 {
+		t.Errorf("attempts = %d, want 0 (fail fast before any request)", attempts)
+	}
+}
+
+func TestResilientClient_RetryAfterCappedInDo(t *testing.T) {
+	t.Parallel()
+
+	var attempts int
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		attempts++
+		h := http.Header{}
+		h.Set("retry-after", "999999")
+		return &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       io.NopCloser(strings.NewReader("throttled")),
+			Header:     h,
+		}, nil
+	})
+
+	rc := NewResilientClient(nil, &ResilientClientOptions{
+		Transport:    transport,
+		MaxRetries:   1,
+		InitialDelay: time.Millisecond,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	_, err := rc.Do(ctx, http.MethodGet, "https://example.com/api", nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context.DeadlineExceeded (proving cap was applied), got: %v", err)
+	}
+
+	if attempts != 1 {
+		t.Errorf("attempts = %d, want 1", attempts)
 	}
 }
