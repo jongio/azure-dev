@@ -107,8 +107,9 @@ func NewResilientClient(tokenProvider azcore.TokenCredential, opts *ResilientCli
 
 	return &ResilientClient{
 		httpClient: &http.Client{
-			Transport: transport,
-			Timeout:   opts.Timeout,
+			Transport:     transport,
+			Timeout:       opts.Timeout,
+			CheckRedirect: SSRFSafeRedirect,
 		},
 		tokenProvider: tokenProvider,
 		scopeDetector: sd,

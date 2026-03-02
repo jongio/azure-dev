@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 )
 
 // ConfigHelper provides typed, ergonomic access to azd configuration through
@@ -256,10 +257,23 @@ func MergeJSON(base, override map[string]any) map[string]any {
 	return merged
 }
 
+// deepMergeMaxDepth is the maximum recursion depth for [DeepMergeJSON].
+// This prevents stack overflow from deeply nested or adversarial JSON
+// structures. 32 levels is far deeper than any legitimate config hierarchy.
+const deepMergeMaxDepth = 32
+
 // DeepMergeJSON performs a recursive merge of override into base.
 // When both base and override have a map value for the same key, those maps
 // are merged recursively. Otherwise the override value replaces the base value.
+//
+// Recursion is bounded to [deepMergeMaxDepth] levels to prevent stack overflow
+// from deeply nested or adversarial inputs. Beyond the limit, the override
+// value replaces the base value (merge degrades to shallow at that level).
 func DeepMergeJSON(base, override map[string]any) map[string]any {
+	return deepMergeJSON(base, override, 0)
+}
+
+func deepMergeJSON(base, override map[string]any, depth int) map[string]any {
 	merged := make(map[string]any, len(base)+len(override))
 
 	for k, v := range base {
@@ -276,8 +290,8 @@ func DeepMergeJSON(base, override map[string]any) map[string]any {
 		baseMap, baseIsMap := baseVal.(map[string]any)
 		overMap, overIsMap := v.(map[string]any)
 
-		if baseIsMap && overIsMap {
-			merged[k] = DeepMergeJSON(baseMap, overMap)
+		if baseIsMap && overIsMap && depth < deepMergeMaxDepth {
+			merged[k] = deepMergeJSON(baseMap, overMap, depth+1)
 		} else {
 			merged[k] = v
 		}
@@ -395,10 +409,17 @@ func (e *ConfigError) Unwrap() error {
 	return e.Err
 }
 
+var configPathRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
 // validatePath checks that a config path is non-empty.
 func validatePath(path string) error {
 	if path == "" {
 		return errors.New("azdext.ConfigHelper: config path must not be empty")
+	}
+	if !configPathRe.MatchString(path) {
+		return errors.New(
+			"azdext.ConfigHelper: config path must start with alphanumeric and contain only [a-zA-Z0-9._-]",
+		)
 	}
 
 	return nil

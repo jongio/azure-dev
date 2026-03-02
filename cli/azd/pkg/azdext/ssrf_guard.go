@@ -40,6 +40,9 @@ type SSRFGuard struct {
 	allowedHosts  map[string]bool
 	// lookupHost is used for DNS resolution; override in tests.
 	lookupHost func(string) ([]string, error)
+	// onBlocked is an optional callback invoked when a URL is blocked.
+	// Parameters: reason (machine-readable tag), detail (human-readable).
+	onBlocked func(reason, detail string)
 }
 
 // SSRFError describes why a URL was rejected by the [SSRFGuard].
@@ -141,6 +144,17 @@ func (g *SSRFGuard) AllowHost(hosts ...string) *SSRFGuard {
 	return g
 }
 
+// OnBlocked registers a callback invoked whenever a URL is blocked. This
+// enables security audit logging without coupling the guard to a logging
+// framework. The callback receives the machine-readable reason tag and a
+// human-readable detail string. It must be safe for concurrent invocation.
+func (g *SSRFGuard) OnBlocked(fn func(reason, detail string)) *SSRFGuard {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.onBlocked = fn
+	return g
+}
+
 // Check validates a URL against the guard's SSRF policy.
 //
 // Validation order:
@@ -163,11 +177,7 @@ func (g *SSRFGuard) Check(rawURL string) error {
 
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return &SSRFError{
-			URL:    truncateValue(rawURL, 200),
-			Reason: "invalid_url",
-			Detail: "URL parsing failed: " + err.Error(),
-		}
+		return g.blocked(truncateValue(rawURL, 200), "invalid_url", "URL parsing failed: "+err.Error())
 	}
 
 	host := u.Hostname()
@@ -178,18 +188,11 @@ func (g *SSRFGuard) Check(rawURL string) error {
 		// Always allowed.
 	case "http":
 		if g.requireHTTPS && !isLocalhostHost(host) {
-			return &SSRFError{
-				URL:    truncateValue(rawURL, 200),
-				Reason: "https_required",
-				Detail: "HTTPS is required for non-localhost URLs",
-			}
+			return g.blocked(truncateValue(rawURL, 200), "https_required", "HTTPS is required for non-localhost URLs")
 		}
 	default:
-		return &SSRFError{
-			URL:    truncateValue(rawURL, 200),
-			Reason: "scheme_blocked",
-			Detail: fmt.Sprintf("scheme %q is not allowed (only http and https are permitted)", u.Scheme),
-		}
+		return g.blocked(truncateValue(rawURL, 200), "scheme_blocked",
+			fmt.Sprintf("scheme %q is not allowed (only http and https are permitted)", u.Scheme))
 	}
 
 	lowerHost := strings.ToLower(host)
@@ -208,11 +211,8 @@ func (g *SSRFGuard) Check(rawURL string) error {
 
 	// Step 5: Metadata endpoint check.
 	if g.blockedHosts[lowerHost] {
-		return &SSRFError{
-			URL:    truncateValue(rawURL, 200),
-			Reason: "blocked_host",
-			Detail: fmt.Sprintf("host %s is blocked", host),
-		}
+		return g.blocked(truncateValue(rawURL, 200), "blocked_host",
+			fmt.Sprintf("host %s is blocked", host))
 	}
 
 	// Step 6: IP-based checks.
@@ -224,20 +224,14 @@ func (g *SSRFGuard) Check(rawURL string) error {
 	// Step 7: DNS resolution for hostnames (fail-closed).
 	addrs, err := g.lookupHost(host)
 	if err != nil {
-		return &SSRFError{
-			URL:    truncateValue(rawURL, 200),
-			Reason: "dns_failure",
-			Detail: fmt.Sprintf("DNS resolution failed for %s (fail-closed): %s", host, err.Error()),
-		}
+		return g.blocked(truncateValue(rawURL, 200), "dns_failure",
+			fmt.Sprintf("DNS resolution failed for %s (fail-closed): %s", host, err.Error()))
 	}
 
 	for _, addr := range addrs {
 		if g.blockedHosts[strings.ToLower(addr)] {
-			return &SSRFError{
-				URL:    truncateValue(rawURL, 200),
-				Reason: "blocked_host",
-				Detail: fmt.Sprintf("host %s resolved to blocked address %s", host, addr),
-			}
+			return g.blocked(truncateValue(rawURL, 200), "blocked_host",
+				fmt.Sprintf("host %s resolved to blocked address %s", host, addr))
 		}
 		if ip := net.ParseIP(addr); ip != nil {
 			if ssrfErr := g.checkIPForSSRF(ip, host, rawURL); ssrfErr != nil {
@@ -249,17 +243,21 @@ func (g *SSRFGuard) Check(rawURL string) error {
 	return nil
 }
 
+// blocked creates an SSRFError and invokes the onBlocked callback.
+func (g *SSRFGuard) blocked(urlStr, reason, detail string) *SSRFError {
+	if g.onBlocked != nil {
+		g.onBlocked(reason, detail)
+	}
+	return &SSRFError{URL: urlStr, Reason: reason, Detail: detail}
+}
+
 // checkIPForSSRF validates an IP address against blocked CIDRs and private
 // network categories. It also extracts embedded IPv4 from IPv6 encoding
 // variants (IPv4-compatible, IPv4-translated RFC 2765) that Go's net.IP
 // methods do not classify.
 func (g *SSRFGuard) checkIPForSSRF(ip net.IP, originalHost, rawURL string) error {
-	if reason, detail, blocked := ssrfCheckIP(ip, originalHost, g.blockedCIDRs, g.blockPrivate); blocked {
-		return &SSRFError{
-			URL:    truncateValue(rawURL, 200),
-			Reason: reason,
-			Detail: detail,
-		}
+	if reason, detail, isBlocked := ssrfCheckIP(ip, originalHost, g.blockedCIDRs, g.blockPrivate); isBlocked {
+		return g.blocked(truncateValue(rawURL, 200), reason, detail)
 	}
 	return nil
 }
