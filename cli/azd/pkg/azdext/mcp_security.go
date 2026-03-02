@@ -42,12 +42,7 @@ func (p *MCPSecurityPolicy) BlockMetadataEndpoints() *MCPSecurityPolicy {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.blockMetadata = true
-	for _, host := range []string{
-		"169.254.169.254",
-		"fd00:ec2::254",
-		"metadata.google.internal",
-		"100.100.100.200",
-	} {
+	for _, host := range ssrfMetadataHosts {
 		p.blockedHosts[strings.ToLower(host)] = true
 	}
 	return p
@@ -60,23 +55,7 @@ func (p *MCPSecurityPolicy) BlockPrivateNetworks() *MCPSecurityPolicy {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.blockPrivate = true
-	for _, cidr := range []string{
-		"0.0.0.0/8",      // "this" network (reaches loopback on Linux/macOS)
-		"10.0.0.0/8",     // RFC 1918 private
-		"172.16.0.0/12",  // RFC 1918 private
-		"192.168.0.0/16", // RFC 1918 private
-		"127.0.0.0/8",    // loopback
-		"100.64.0.0/10",  // RFC 6598 shared/CGNAT (internal in cloud environments)
-		"169.254.0.0/16", // IPv4 link-local
-		"::1/128",        // IPv6 loopback
-		"::/128",         // IPv6 unspecified (reaches loopback)
-		"fc00::/7",       // IPv6 unique local addresses (RFC 4193, equiv of RFC 1918)
-		"fe80::/10",      // IPv6 link-local
-		"2002::/16",      // 6to4 relay (deprecated RFC 7526; can embed private IPv4)
-		"2001::/32",      // Teredo tunneling (deprecated; can embed private IPv4)
-		"64:ff9b::/96",   // NAT64 well-known prefix (RFC 6052; embeds IPv4 in last 32 bits)
-		"64:ff9b:1::/48", // NAT64 local-use prefix (RFC 8215; embeds IPv4 in last 32 bits)
-	} {
+	for _, cidr := range ssrfBlockedCIDRs {
 		_, ipNet, err := net.ParseCIDR(cidr)
 		if err == nil {
 			p.blockedCIDRs = append(p.blockedCIDRs, ipNet)
@@ -180,70 +159,8 @@ func (p *MCPSecurityPolicy) CheckURL(rawURL string) error {
 }
 
 func (p *MCPSecurityPolicy) checkIP(ip net.IP, originalHost string) error {
-	for _, cidr := range p.blockedCIDRs {
-		if cidr.Contains(ip) {
-			return fmt.Errorf("blocked IP %s (CIDR %s) for host %s", ip, cidr, originalHost)
-		}
-	}
-
-	if p.blockPrivate {
-		// Catch encoding variants (e.g., IPv4-compatible IPv6 like ::127.0.0.1)
-		// that may not match CIDR entries due to byte-length mismatch.
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
-			return fmt.Errorf("blocked IP %s (private/loopback/link-local) for host %s", ip, originalHost)
-		}
-
-		// Handle encoding variants that Go's net.IP methods don't classify, by extracting
-		// the embedded IPv4 address and re-checking it against all blocked ranges.
-		if len(ip) == net.IPv6len && ip.To4() == nil {
-			// IPv4-compatible (::x.x.x.x, RFC 4291 §2.5.5.1): first 12 bytes are zero.
-			isV4Compatible := true
-			for i := 0; i < 12; i++ {
-				if ip[i] != 0 {
-					isV4Compatible = false
-					break
-				}
-			}
-			if isV4Compatible && (ip[12] != 0 || ip[13] != 0 || ip[14] != 0 || ip[15] != 0) {
-				v4 := net.IPv4(ip[12], ip[13], ip[14], ip[15])
-				for _, cidr := range p.blockedCIDRs {
-					if cidr.Contains(v4) {
-						return fmt.Errorf("blocked IP %s (IPv4-compatible %s, CIDR %s) for host %s",
-							ip, v4, cidr, originalHost)
-					}
-				}
-				if v4.IsLoopback() || v4.IsPrivate() || v4.IsLinkLocalUnicast() || v4.IsUnspecified() {
-					return fmt.Errorf("blocked IP %s (IPv4-compatible %s, private/loopback) for host %s",
-						ip, v4, originalHost)
-				}
-			}
-
-			// IPv4-translated (::ffff:0:x.x.x.x, RFC 2765 §4.2.1): bytes 0-7 zero,
-			// bytes 8-9 = 0xFF 0xFF, bytes 10-11 = 0x00 0x00, bytes 12-15 = IPv4.
-			// Distinct from IPv4-mapped (bytes 10-11 = 0xFF), so To4() returns nil.
-			isV4Translated := ip[8] == 0xFF && ip[9] == 0xFF && ip[10] == 0x00 && ip[11] == 0x00
-			if isV4Translated {
-				for i := 0; i < 8; i++ {
-					if ip[i] != 0 {
-						isV4Translated = false
-						break
-					}
-				}
-			}
-			if isV4Translated && (ip[12] != 0 || ip[13] != 0 || ip[14] != 0 || ip[15] != 0) {
-				v4 := net.IPv4(ip[12], ip[13], ip[14], ip[15])
-				for _, cidr := range p.blockedCIDRs {
-					if cidr.Contains(v4) {
-						return fmt.Errorf("blocked IP %s (IPv4-translated %s, CIDR %s) for host %s",
-							ip, v4, cidr, originalHost)
-					}
-				}
-				if v4.IsLoopback() || v4.IsPrivate() || v4.IsLinkLocalUnicast() || v4.IsUnspecified() {
-					return fmt.Errorf("blocked IP %s (IPv4-translated %s, private/loopback) for host %s",
-						ip, v4, originalHost)
-				}
-			}
-		}
+	if _, detail, blocked := ssrfCheckIP(ip, originalHost, p.blockedCIDRs, p.blockPrivate); blocked {
+		return fmt.Errorf("%s", detail)
 	}
 
 	return nil
