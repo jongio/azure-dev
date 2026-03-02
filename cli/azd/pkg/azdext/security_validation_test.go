@@ -4,6 +4,7 @@
 package azdext
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -349,9 +350,5 @@ func TestTruncateValue(t *testing.T) {
 
 // isValidationError is a type assertion helper for testing.
 func isValidationError(err error, target **ValidationError) bool {
-	ve, ok := err.(*ValidationError)
-	if ok {
-		*target = ve
-	}
-	return ok
+	return errors.As(err, target)
 }
