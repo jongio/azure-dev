@@ -4,6 +4,7 @@
 package azdext
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -180,8 +181,8 @@ func TestSSRFGuard_BlocksExoticSchemes(t *testing.T) {
 			t.Errorf("Check(%s) = nil, want blocked (%s scheme)", tc.url, tc.desc)
 			continue
 		}
-		ssrfErr, ok := err.(*SSRFError)
-		if !ok {
+		var ssrfErr *SSRFError
+		if !errors.As(err, &ssrfErr) {
 			t.Errorf("Check(%s) returned %T, want *SSRFError", tc.url, err)
 			continue
 		}
@@ -206,8 +207,8 @@ func TestSSRFGuard_DNSResolvesToBlockedIP(t *testing.T) {
 		t.Error("Check should block URL resolving to private IP via DNS")
 	}
 
-	ssrfErr, ok := err.(*SSRFError)
-	if !ok {
+	var ssrfErr *SSRFError
+	if !errors.As(err, &ssrfErr) {
 		t.Fatalf("Check returned %T, want *SSRFError", err)
 	}
 	if ssrfErr.Reason != "blocked_ip" {
@@ -238,8 +239,8 @@ func TestSSRFGuard_DNSFailureBlocksRequest(t *testing.T) {
 		t.Fatal("Check should block URL when DNS resolution fails (fail-closed)")
 	}
 
-	ssrfErr, ok := err.(*SSRFError)
-	if !ok {
+	var ssrfErr *SSRFError
+	if !errors.As(err, &ssrfErr) {
 		t.Fatalf("Check returned %T, want *SSRFError", err)
 	}
 	if ssrfErr.Reason != "dns_failure" {
@@ -372,8 +373,8 @@ func TestSSRFGuard_InvalidURL(t *testing.T) {
 		t.Error("Check(invalid URL) = nil, want error")
 		return
 	}
-	ssrfErr, ok := err.(*SSRFError)
-	if !ok {
+	var ssrfErr *SSRFError
+	if !errors.As(err, &ssrfErr) {
 		t.Errorf("Check returned %T, want *SSRFError", err)
 		return
 	}
@@ -392,8 +393,8 @@ func TestSSRFGuard_URLTruncation(t *testing.T) {
 		t.Fatal("Check(long http URL) = nil, want HTTPS error")
 	}
 
-	ssrfErr, ok := err.(*SSRFError)
-	if !ok {
+	var ssrfErr *SSRFError
+	if !errors.As(err, &ssrfErr) {
 		t.Fatalf("Check returned %T, want *SSRFError", err)
 	}
 	// URL should be truncated in the error to avoid log flooding.
