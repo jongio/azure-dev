@@ -150,7 +150,12 @@ func isCIEnv() bool {
 // agentEnvVars lists environment variables that indicate AI coding agents.
 var agentEnvVars = []string{
 	"CLAUDE_CODE",
+	"CLAUDE_CODE_ENTRYPOINT",
 	"GITHUB_COPILOT_CLI",
+	"GH_COPILOT",
+	"GEMINI_CLI",
+	"GEMINI_CLI_NO_RELAUNCH",
+	"OPENCODE",
 	"AZURE_DEV_AGENT_TYPE",
 }
 

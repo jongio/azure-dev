@@ -42,6 +42,42 @@ func TestLookupTool_NotFound(t *testing.T) {
 	}
 }
 
+func TestLookupTool_ProjectLocalTool(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir() error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	toolName := "azdext-local-tool"
+	toolPath := toolName
+	toolContent := "#!/bin/sh\necho ok\n"
+	mode := os.FileMode(0o755)
+	if runtime.GOOS == "windows" {
+		toolPath = toolName + ".cmd"
+		toolContent = "@echo off\r\necho ok\r\n"
+		mode = 0o644
+	}
+	if err := os.WriteFile(toolPath, []byte(toolContent), mode); err != nil {
+		t.Fatalf("WriteFile(%q) error: %v", toolPath, err)
+	}
+
+	info := LookupTool(toolName)
+	if !info.Found {
+		t.Fatalf("LookupTool(%q).Found = false, want true", toolName)
+	}
+	if info.Path == "" {
+		t.Fatalf("LookupTool(%q).Path is empty", toolName)
+	}
+	if !strings.Contains(strings.ToLower(info.Path), strings.ToLower(toolName)) {
+		t.Fatalf("LookupTool(%q).Path = %q, want project-local path", toolName, info.Path)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // LookupTools
 // ---------------------------------------------------------------------------

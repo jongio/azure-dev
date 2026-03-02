@@ -27,6 +27,8 @@ type ToolInfo struct {
 }
 
 // LookupTool searches for the named executable on the system PATH.
+// If not found on PATH, it also checks the current working directory for a
+// project-local executable with the same name (for example, ./mvnw).
 //
 // Platform behavior:
 //   - Windows: Searches PATH and PATHEXT extensions (.exe, .cmd, .bat, etc.).
@@ -35,6 +37,10 @@ type ToolInfo struct {
 // LookupTool never returns an error; if the tool is not found, Found is false
 // and Path is empty.
 func LookupTool(name string) ToolInfo {
+	if p, ok := lookupProjectLocalTool(name); ok {
+		return ToolInfo{Name: name, Path: p, Found: true}
+	}
+
 	p, err := exec.LookPath(name)
 	if err != nil {
 		return ToolInfo{Name: name, Found: false}
@@ -208,4 +214,61 @@ func normalizePATHEntry(p string) string {
 		return strings.ToLower(filepath.Clean(p))
 	}
 	return filepath.Clean(p)
+}
+
+func lookupProjectLocalTool(name string) (string, bool) {
+	if name == "" || strings.ContainsAny(name, `/\`) {
+		return "", false
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", false
+	}
+
+	base := filepath.Join(cwd, name)
+	for _, candidate := range executableCandidates(base) {
+		if isExecutableFile(candidate) {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
+func executableCandidates(base string) []string {
+	if runtime.GOOS != "windows" {
+		return []string{base}
+	}
+
+	if ext := strings.ToLower(filepath.Ext(base)); ext != "" {
+		return []string{base}
+	}
+
+	exts := strings.Split(os.Getenv("PATHEXT"), ";")
+	if len(exts) == 0 || (len(exts) == 1 && exts[0] == "") {
+		exts = []string{".exe", ".cmd", ".bat", ".com"}
+	}
+
+	candidates := make([]string, 0, len(exts)+1)
+	candidates = append(candidates, base)
+	for _, ext := range exts {
+		if ext == "" {
+			continue
+		}
+		candidates = append(candidates, base+strings.ToLower(ext))
+		candidates = append(candidates, base+strings.ToUpper(ext))
+	}
+	return candidates
+}
+
+func isExecutableFile(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil || fi.IsDir() {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return fi.Mode()&0o111 != 0
 }
