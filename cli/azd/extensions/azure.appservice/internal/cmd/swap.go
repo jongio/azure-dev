@@ -207,6 +207,18 @@ func runSwap(ctx context.Context, flags *swapFlags, rootFlags rootFlagsDefinitio
 	srcProvided := flags.src != ""
 	dstProvided := flags.dst != ""
 
+	// Validate slot name format before any further processing.
+	if srcProvided {
+		if err := validateSlotName(srcSlot); err != nil {
+			return err
+		}
+	}
+	if dstProvided {
+		if err := validateSlotName(dstSlot); err != nil {
+			return err
+		}
+	}
+
 	// Build the list of all slot names (including production as empty string)
 	slotNames := []string{""} // Production is represented as empty string
 	for _, slot := range slots {
@@ -338,6 +350,27 @@ func normalizeSlotName(slot string) string {
 		return ""
 	}
 	return slot
+}
+
+// validateSlotName checks that a slot name is safe to use as an Azure App
+// Service deployment slot identifier. Empty string is allowed (represents
+// the production slot). Valid slot names contain only alphanumeric characters,
+// hyphens, and underscores (matching Azure's naming constraints).
+func validateSlotName(name string) error {
+	if name == "" {
+		return nil // empty = production slot
+	}
+	for i, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return fmt.Errorf("invalid slot name %q: contains invalid character %q at position %d "+
+				"(only alphanumeric, hyphens, and underscores are allowed)", name, string(r), i)
+		}
+	}
+	if len(name) > 64 {
+		return fmt.Errorf("invalid slot name %q: exceeds 64-character limit", name)
+	}
+	return nil
 }
 
 func isValidSlotName(name string, availableSlots []string) bool {

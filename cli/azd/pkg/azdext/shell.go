@@ -119,6 +119,11 @@ func DetectShell() ShellInfo {
 // on the returned Cmd before running it.
 //
 // Returns an error if the shell type is unknown and no fallback is available.
+//
+// Security note: script is passed directly to the shell and may contain
+// arbitrary commands. Callers MUST NOT pass unsanitized user input as the
+// script argument. For executing a known program with arguments (no shell
+// interpolation), use [ExecCommand] instead.
 func ShellCommand(ctx context.Context, script string) (*exec.Cmd, error) {
 	info := DetectShell()
 	return ShellCommandWith(ctx, info, script)
@@ -201,6 +206,19 @@ func IsStdinTerminal() bool {
 // IsStdoutTerminal reports whether standard output is an interactive terminal.
 func IsStdoutTerminal() bool {
 	return IsInteractiveTerminal(os.Stdout)
+}
+
+// ExecCommand creates an [exec.Cmd] that runs a program directly without a
+// shell, preventing shell injection. Arguments are passed as a list, not
+// interpolated through a shell parser.
+//
+// This is the recommended API for executing external programs when the
+// program path and arguments are known. Use [ShellCommand] only when shell
+// features (pipes, globbing, variable expansion) are genuinely required.
+//
+// The name is resolved via [exec.LookPath]-style lookup (PATH search).
+func ExecCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, args...)
 }
 
 // ---------------------------------------------------------------------------
