@@ -104,7 +104,7 @@ func (o *Output) Success(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	msg := fmt.Sprintf(format, args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
 	o.successColor.Fprintf(o.writer, "(✓) Done: %s\n", msg)
 }
 
@@ -121,7 +121,7 @@ func (o *Output) Warning(format string, args ...any) {
 		})
 		return
 	}
-	o.warningColor.Fprintf(o.errWriter, "(!) Warning: %s\n", msg)
+	o.warningColor.Fprintf(o.errWriter, "(!) Warning: %s\n", sanitizeOutputText(msg))
 }
 
 // Error prints an error message prefixed with a red cross.
@@ -135,7 +135,7 @@ func (o *Output) Error(format string, args ...any) {
 		})
 		return
 	}
-	o.errorColor.Fprintf(o.errWriter, "(✗) Error: %s\n", msg)
+	o.errorColor.Fprintf(o.errWriter, "(✗) Error: %s\n", sanitizeOutputText(msg))
 }
 
 // Info prints an informational message prefixed with an info symbol.
@@ -144,7 +144,7 @@ func (o *Output) Info(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	msg := fmt.Sprintf(format, args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
 	o.infoColor.Fprintf(o.writer, "(i) %s\n", msg)
 }
 
@@ -154,7 +154,8 @@ func (o *Output) Message(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	fmt.Fprintf(o.writer, format+"\n", args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
+	fmt.Fprintln(o.writer, msg)
 }
 
 // JSON writes data as a pretty-printed JSON object to stdout.
@@ -246,10 +247,42 @@ func (o *Output) tableText(headers []string, rows [][]string) {
 			}
 			cell := ""
 			if i < len(row) {
-				cell = row[i]
+				cell = sanitizeOutputText(row[i])
 			}
 			fmt.Fprintf(o.writer, "%-*s", widths[i], cell)
 		}
 		fmt.Fprintln(o.writer)
 	}
+}
+
+// sanitizeOutputText replaces CR, LF, and other ASCII control characters
+// (except tab) with a space to prevent log forging and terminal escape
+// sequence injection in text-mode output.
+//
+// JSON-mode output is not sanitized here because JSON encoding handles
+// escaping of control characters and the structured fields must remain
+// machine-readable.
+func sanitizeOutputText(s string) string {
+	// Fast path: if no control characters are present, return as-is.
+	clean := true
+	for _, r := range s {
+		if (r < 0x20 && r != '\t') || r == 0x7F {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if (r < 0x20 && r != '\t') || r == 0x7F {
+			b.WriteRune(' ')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

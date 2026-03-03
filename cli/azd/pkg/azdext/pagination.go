@@ -173,7 +173,7 @@ func (p *Pager[T]) NextPage(ctx context.Context) (*PageResponse[T], error) {
 		return nil, &PaginationError{
 			StatusCode: resp.StatusCode,
 			URL:        p.nextURL,
-			Body:       string(body),
+			Body:       sanitizeErrorBody(string(body)),
 		}
 	}
 
@@ -276,6 +276,10 @@ func (p *Pager[T]) Collect(ctx context.Context) ([]T, error) {
 	return all, nil
 }
 
+// maxPaginationErrorBodyLen limits the response body length stored in
+// PaginationError to prevent sensitive data leakage through error messages.
+const maxPaginationErrorBodyLen = 1024
+
 // PaginationError is returned when a page request receives a non-2xx response.
 type PaginationError struct {
 	StatusCode int
@@ -288,6 +292,28 @@ func (e *PaginationError) Error() string {
 		"azdext.Pager: page request returned HTTP %d (url=%s)",
 		e.StatusCode, redactURL(e.URL),
 	)
+}
+
+func sanitizeErrorBody(body string) string {
+	if len(body) > maxPaginationErrorBodyLen {
+		body = body[:maxPaginationErrorBodyLen] + "...[truncated]"
+	}
+	return stripControlChars(body)
+}
+
+func stripControlChars(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r < 0x20 && r != '\t' {
+			b.WriteRune(' ')
+		} else if r == 0x7F {
+			b.WriteRune(' ')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // redactURL strips query parameters and fragments from a URL to avoid leaking
