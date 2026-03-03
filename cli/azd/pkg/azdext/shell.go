@@ -5,6 +5,7 @@ package azdext
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -118,13 +119,30 @@ func DetectShell() ShellInfo {
 // The caller is responsible for setting Stdin, Stdout, Stderr, Dir, and Env
 // on the returned Cmd before running it.
 //
-// Returns an error if the shell type is unknown and no fallback is available.
+// Returns an error if the shell type is unknown and no fallback is available,
+// or if script is empty.
 //
-// Security note: script is passed directly to the shell and may contain
-// arbitrary commands. Callers MUST NOT pass unsanitized user input as the
-// script argument. For executing a known program with arguments (no shell
-// interpolation), use [ExecCommand] instead.
+// # Security
+//
+// ShellCommand passes script directly to a shell interpreter. It is a
+// TRUSTED-INPUT-ONLY API: callers MUST NOT pass unsanitized user input as the
+// script argument. Doing so enables arbitrary command execution.
+//
+// Safe usage:
+//   - Constant string literals: ShellCommand(ctx, "npm install")
+//   - Extension-defined hook scripts: ShellCommand(ctx, hook.Script)
+//
+// Unsafe usage (DO NOT DO THIS):
+//   - ShellCommand(ctx, userInput) — arbitrary code execution
+//   - ShellCommand(ctx, "echo "+userInput) — shell injection via metacharacters
+//
+// For executing a known program with arguments (no shell interpolation),
+// use [ExecCommand] instead, which passes arguments as a list and is safe
+// with untrusted input.
 func ShellCommand(ctx context.Context, script string) (*exec.Cmd, error) {
+	if script == "" {
+		return nil, errors.New("azdext.ShellCommand: script must not be empty")
+	}
 	info := DetectShell()
 	return ShellCommandWith(ctx, info, script)
 }

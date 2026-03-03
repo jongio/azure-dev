@@ -195,10 +195,15 @@ func (p *MCPSecurityPolicy) checkIP(ip net.IP, originalHost string) error {
 //
 // SECURITY NOTE (TOCTOU): This check is inherently susceptible to
 // time-of-check-to-time-of-use races — the filesystem state may change between
-// the validation here and the actual file access by the caller. Callers that
-// operate in adversarial environments (e.g., shared file systems) should open
-// the file immediately after validation and re-verify the resolved path via
-// /proc/self/fd or fstat before processing.
+// the validation here and the actual file access by the caller.
+//
+// Mitigations callers should consider:
+//   - Use O_NOFOLLOW when opening files after validation.
+//   - Use file-descriptor-based approaches (openat2 with RESOLVE_BENEATH on
+//     Linux 5.6+) where possible.
+//   - Open the file immediately after validation and re-verify the resolved
+//     path via /proc/self/fd/N or fstat before processing.
+//   - Avoid writing to directories that untrusted users can modify.
 func (p *MCPSecurityPolicy) CheckPath(path string) error {
 	p.mu.RLock()
 	fn := p.onBlocked

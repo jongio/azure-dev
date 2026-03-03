@@ -42,7 +42,11 @@ func TestLookupTool_NotFound(t *testing.T) {
 	}
 }
 
-func TestLookupTool_ProjectLocalTool(t *testing.T) {
+// TestLookupTool_RejectsProjectLocal verifies that LookupTool (PATH-only)
+// does NOT find tools that only exist in the current working directory.
+// This prevents path-hijack attacks where an attacker places a malicious
+// executable in the project directory.
+func TestLookupTool_RejectsProjectLocal(t *testing.T) {
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd() error: %v", err)
@@ -67,14 +71,44 @@ func TestLookupTool_ProjectLocalTool(t *testing.T) {
 	}
 
 	info := LookupTool(toolName)
+	if info.Found {
+		t.Fatalf("LookupTool(%q).Found = true, want false (PATH-only should not find CWD tools)", toolName)
+	}
+}
+
+// TestLookupToolWithLocal_AllowlistedWrapper verifies that LookupToolWithLocal
+// finds allowlisted project-local wrappers (e.g., mvnw, gradlew) in CWD.
+func TestLookupToolWithLocal_AllowlistedWrapper(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("Chdir() error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	// "mvnw" is in the projectLocalWrappers allowlist.
+	toolName := "mvnw"
+	toolPath := toolName
+	toolContent := "#!/bin/sh\necho ok\n"
+	mode := os.FileMode(0o755)
+	if runtime.GOOS == "windows" {
+		toolPath = toolName + ".cmd"
+		toolContent = "@echo off\r\necho ok\r\n"
+		mode = 0o644
+	}
+	if err := os.WriteFile(toolPath, []byte(toolContent), mode); err != nil {
+		t.Fatalf("WriteFile(%q) error: %v", toolPath, err)
+	}
+
+	info := LookupToolWithLocal(toolName)
 	if !info.Found {
-		t.Fatalf("LookupTool(%q).Found = false, want true", toolName)
+		t.Fatalf("LookupToolWithLocal(%q).Found = false, want true", toolName)
 	}
 	if info.Path == "" {
-		t.Fatalf("LookupTool(%q).Path is empty", toolName)
-	}
-	if !strings.Contains(strings.ToLower(info.Path), strings.ToLower(toolName)) {
-		t.Fatalf("LookupTool(%q).Path = %q, want project-local path", toolName, info.Path)
+		t.Fatalf("LookupToolWithLocal(%q).Path is empty", toolName)
 	}
 }
 

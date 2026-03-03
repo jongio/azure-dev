@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/azure/azure-dev/cli/azd/pkg/osutil"
 )
@@ -195,11 +196,23 @@ func BackupFile(path, suffix string) (string, error) {
 //
 // This is a convenience wrapper around [os.MkdirAll] with an explicit error
 // prefix for diagnostics.
+//
+// Security: EnsureDir cleans the path via [filepath.Clean] and rejects paths
+// containing parent-directory traversal ("..") to prevent creating directories
+// outside the caller's intended scope. For untrusted input, callers should
+// additionally use [MCPSecurityPolicy.CheckPath] for base-directory validation.
 func EnsureDir(dir string, perm os.FileMode) error {
 	if perm == 0 {
 		perm = 0o755
 	}
-	if err := os.MkdirAll(dir, perm); err != nil {
+
+	// Reject paths containing parent traversal sequences.
+	cleaned := filepath.Clean(dir)
+	if strings.Contains(cleaned, "..") {
+		return fmt.Errorf("azdext.EnsureDir: path traversal detected in %q", dir)
+	}
+
+	if err := os.MkdirAll(cleaned, perm); err != nil {
 		return fmt.Errorf("azdext.EnsureDir: %w", err)
 	}
 	return nil

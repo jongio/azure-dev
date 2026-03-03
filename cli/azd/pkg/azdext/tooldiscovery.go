@@ -27,8 +27,14 @@ type ToolInfo struct {
 }
 
 // LookupTool searches for the named executable on the system PATH.
-// If not found on PATH, it also checks the current working directory for a
-// project-local executable with the same name (for example, ./mvnw).
+//
+// By default, only the system PATH is searched. Project-local executables
+// (e.g., ./mvnw, ./gradlew) in the current working directory are NOT checked
+// automatically to prevent CWD-based path hijack attacks where a malicious
+// project plants an executable that shadows a system tool.
+//
+// To also search the current working directory for project-local wrapper
+// scripts, use [LookupToolWithLocal].
 //
 // Platform behavior:
 //   - Windows: Searches PATH and PATHEXT extensions (.exe, .cmd, .bat, etc.).
@@ -37,10 +43,6 @@ type ToolInfo struct {
 // LookupTool never returns an error; if the tool is not found, Found is false
 // and Path is empty.
 func LookupTool(name string) ToolInfo {
-	if p, ok := lookupProjectLocalTool(name); ok {
-		return ToolInfo{Name: name, Path: p, Found: true}
-	}
-
 	p, err := exec.LookPath(name)
 	if err != nil {
 		return ToolInfo{Name: name, Found: false}
@@ -53,6 +55,40 @@ func LookupTool(name string) ToolInfo {
 	}
 
 	return ToolInfo{Name: name, Path: abs, Found: true}
+}
+
+// projectLocalWrappers is the allowlist of well-known project-local wrapper
+// scripts that are safe to discover in the CWD. Only these exact base names
+// (case-insensitive on Windows) are considered by [LookupToolWithLocal].
+var projectLocalWrappers = map[string]bool{
+	"mvnw":    true, // Maven wrapper
+	"gradlew": true, // Gradle wrapper
+}
+
+// LookupToolWithLocal searches for the named executable first on the system
+// PATH, then (if not found) checks the current working directory for a
+// project-local executable — but ONLY if the name is in the allowlist of
+// well-known wrapper scripts ([projectLocalWrappers]).
+//
+// This constrained CWD search prevents arbitrary path hijack attacks while
+// still supporting common project-local tool wrappers like mvnw and gradlew.
+func LookupToolWithLocal(name string) ToolInfo {
+	// Always try PATH first.
+	info := LookupTool(name)
+	if info.Found {
+		return info
+	}
+
+	// Only check CWD for allowlisted wrapper names.
+	if !projectLocalWrappers[strings.ToLower(name)] {
+		return info
+	}
+
+	if p, ok := lookupProjectLocalTool(name); ok {
+		return ToolInfo{Name: name, Path: p, Found: true}
+	}
+
+	return info
 }
 
 // LookupTools searches for multiple tools on PATH in a single call.

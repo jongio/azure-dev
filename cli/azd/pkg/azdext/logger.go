@@ -164,6 +164,11 @@ func newHandler(opts LoggerOptions) slog.Handler {
 }
 
 // isDebugEnv checks the AZD_DEBUG environment variable.
+//
+// Security note: AZD_DEBUG enables verbose logging that may include
+// request details, configuration paths, and internal state. It should
+// NOT be enabled in production deployments. The variable is intended
+// for local development and CI debugging only.
 func isDebugEnv() bool {
 	v := strings.ToLower(os.Getenv("AZD_DEBUG"))
 	return v == "1" || v == "true" || v == "yes"

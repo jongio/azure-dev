@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // ConfigHelper provides typed, ergonomic access to azd configuration through
@@ -409,18 +410,33 @@ func (e *ConfigError) Unwrap() error {
 	return e.Err
 }
 
-var configPathRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+var configSegmentRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$`)
 
-// validatePath checks that a config path is non-empty.
 func validatePath(path string) error {
 	if path == "" {
 		return errors.New("azdext.ConfigHelper: config path must not be empty")
 	}
-	if !configPathRe.MatchString(path) {
+	if strings.HasPrefix(path, ".") || strings.HasSuffix(path, ".") || strings.Contains(path, "..") {
 		return errors.New(
-			"azdext.ConfigHelper: config path must start with alphanumeric and contain only [a-zA-Z0-9._-]",
+			"azdext.ConfigHelper: config path must not have empty segments " +
+				"(no leading/trailing dots or consecutive dots)",
 		)
 	}
-
+	for _, seg := range strings.Split(path, ".") {
+		if !configSegmentRe.MatchString(seg) {
+			return fmt.Errorf(
+				"azdext.ConfigHelper: config path segment %q must start with alphanumeric "+
+					"and contain only [a-zA-Z0-9_-], max 63 chars",
+				truncateConfigValue(seg, 64),
+			)
+		}
+	}
 	return nil
+}
+
+func truncateConfigValue(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
