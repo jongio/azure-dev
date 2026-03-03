@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -89,6 +90,10 @@ func (o *ResilientClientOptions) defaults() {
 // tokenProvider may be nil if the caller handles Authorization headers manually.
 // When non-nil, the client automatically injects a Bearer token using scopes
 // resolved from the request URL via the [ScopeDetector].
+//
+// The client uses a safe transport that validates resolved IP addresses at
+// connection time, mitigating DNS rebinding TOCTOU attacks where a hostname
+// resolves to a safe IP at check time but to a private IP at connect time.
 func NewResilientClient(tokenProvider azcore.TokenCredential, opts *ResilientClientOptions) *ResilientClient {
 	if opts == nil {
 		opts = &ResilientClientOptions{}
@@ -98,7 +103,7 @@ func NewResilientClient(tokenProvider azcore.TokenCredential, opts *ResilientCli
 
 	transport := opts.Transport
 	if transport == nil {
-		transport = http.DefaultTransport
+		transport = ssrfSafeTransport()
 	}
 
 	sd := opts.ScopeDetector
@@ -115,6 +120,49 @@ func NewResilientClient(tokenProvider azcore.TokenCredential, opts *ResilientCli
 		tokenProvider: tokenProvider,
 		scopeDetector: sd,
 		opts:          *opts,
+	}
+}
+
+// ssrfSafeTransport returns an [http.RoundTripper] that validates every
+// resolved IP address at dial time against SSRF block lists.  This closes the
+// DNS-rebinding TOCTOU gap where a hostname passes the pre-request SSRF check
+// (resolves to a public IP) but is re-resolved by the dialer to a private IP.
+//
+// The dialer uses the default SSRF guard (metadata + private networks blocked).
+func ssrfSafeTransport() http.RoundTripper {
+	guard := DefaultSSRFGuard()
+	dialer := &net.Dialer{Timeout: 30 * time.Second}
+
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("azdext: invalid address %q: %w", addr, err)
+			}
+
+			// Resolve and validate each IP before connecting.
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("azdext: DNS resolution failed for %s (fail-closed): %w", host, err)
+			}
+
+			for _, ipAddr := range ips {
+				if reason, detail, blocked := ssrfCheckIP(
+					ipAddr.IP, host, guard.blockedCIDRs, guard.blockPrivate,
+				); blocked {
+					return nil, fmt.Errorf(
+						"azdext: SSRF dial blocked: %s: %s (host=%s)", reason, detail, host)
+				}
+			}
+
+			// Connect to the first resolved IP (already validated).
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 }
 

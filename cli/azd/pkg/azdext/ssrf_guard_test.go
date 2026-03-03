@@ -427,6 +427,68 @@ func TestSSRFGuard_ConcurrentCheck(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// SSRFGuard — obfuscated IP host formats
+// ---------------------------------------------------------------------------
+
+// TestSSRFGuard_ObfuscatedIPFormats documents and verifies SSRF safety for
+// various obfuscated IP address formats that attackers may use to bypass
+// hostname-based blocklists. These are non-standard host representations
+// that some URL parsers/HTTP clients accept and resolve to private IPs.
+func TestSSRFGuard_ObfuscatedIPFormats(t *testing.T) {
+	guard := NewSSRFGuard().BlockPrivateNetworks().BlockMetadataEndpoints()
+
+	// Obfuscated IPv4 formats — these are blocked because Go's url.Parse
+	// normalizes or rejects them, and our IP checks catch the resolved form.
+	tests := []struct {
+		url    string
+		desc   string
+		expect string // "block" or "block_or_error" (parser may reject)
+	}{
+		// Decimal encoding of 127.0.0.1 (2130706433 = 0x7F000001).
+		// Go's net.ParseIP does NOT parse decimal IPs, so this falls through
+		// to DNS resolution which will fail (fail-closed → blocked).
+		{"http://2130706433/api", "decimal IP (127.0.0.1)", "block_or_error"},
+
+		// Octal encoding: 0177.0.0.1 = 127.0.0.1.
+		// Go's net.ParseIP rejects octal, so DNS lookup fails (fail-closed).
+		{"http://0177.0.0.1/api", "octal IP (127.0.0.1)", "block_or_error"},
+
+		// Hex encoding: 0x7f000001 = 127.0.0.1.
+		// Go's net.ParseIP rejects hex integers → DNS fail-closed.
+		{"http://0x7f000001/api", "hex IP (127.0.0.1)", "block_or_error"},
+
+		// IPv6 bracket notation with private IPv4-mapped address.
+		{"http://[::ffff:10.0.0.1]/api", "IPv4-mapped private in brackets", "block"},
+
+		// IPv4-compatible IPv6 embedding private IP.
+		{"http://[::10.0.0.1]/api", "IPv4-compatible private (::10.0.0.1)", "block"},
+
+		// Zero-padded IPv4 octets (non-standard; rejected by Go parser).
+		{"http://127.000.000.001/api", "zero-padded loopback", "block_or_error"},
+
+		// Mixed-case metadata hostname.
+		{"http://Metadata.Google.Internal/api", "mixed-case metadata host", "block"},
+
+		// IPv6 with zone ID — net.ParseIP rejects zone IDs, blocked on parse.
+		{"http://[fe80::1%25eth0]/api", "IPv6 link-local with zone", "block"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Override DNS to fail-closed (prevents real network calls).
+			guard.lookupHost = func(host string) ([]string, error) {
+				return nil, fmt.Errorf("dns: NXDOMAIN (test)")
+			}
+
+			err := guard.Check(tc.url)
+			if err == nil {
+				t.Errorf("Check(%s) = nil, want blocked (%s)", tc.url, tc.desc)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // SSRFError
 // ---------------------------------------------------------------------------
 

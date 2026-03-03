@@ -104,7 +104,7 @@ func (o *Output) Success(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	msg := fmt.Sprintf(format, args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
 	o.successColor.Fprintf(o.writer, "(✓) Done: %s\n", msg)
 }
 
@@ -121,7 +121,7 @@ func (o *Output) Warning(format string, args ...any) {
 		})
 		return
 	}
-	o.warningColor.Fprintf(o.errWriter, "(!) Warning: %s\n", msg)
+	o.warningColor.Fprintf(o.errWriter, "(!) Warning: %s\n", sanitizeOutputText(msg))
 }
 
 // Error prints an error message prefixed with a red cross.
@@ -135,7 +135,7 @@ func (o *Output) Error(format string, args ...any) {
 		})
 		return
 	}
-	o.errorColor.Fprintf(o.errWriter, "(✗) Error: %s\n", msg)
+	o.errorColor.Fprintf(o.errWriter, "(✗) Error: %s\n", sanitizeOutputText(msg))
 }
 
 // Info prints an informational message prefixed with an info symbol.
@@ -144,7 +144,7 @@ func (o *Output) Info(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	msg := fmt.Sprintf(format, args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
 	o.infoColor.Fprintf(o.writer, "(i) %s\n", msg)
 }
 
@@ -154,7 +154,8 @@ func (o *Output) Message(format string, args ...any) {
 	if o.IsJSON() {
 		return
 	}
-	fmt.Fprintf(o.writer, format+"\n", args...)
+	msg := sanitizeOutputText(fmt.Sprintf(format, args...))
+	fmt.Fprintln(o.writer, msg)
 }
 
 // JSON writes data as a pretty-printed JSON object to stdout.
@@ -246,10 +247,27 @@ func (o *Output) tableText(headers []string, rows [][]string) {
 			}
 			cell := ""
 			if i < len(row) {
-				cell = row[i]
+				cell = sanitizeOutputText(row[i])
 			}
 			fmt.Fprintf(o.writer, "%-*s", widths[i], cell)
 		}
 		fmt.Fprintln(o.writer)
 	}
+}
+
+// sanitizeOutputText replaces CR, LF, and other ASCII control characters
+// (except TAB) with a space so that untrusted values embedded in text-mode
+// output cannot forge log lines or inject terminal escape sequences.
+// JSON-mode output is NOT sanitized here because json.Encoder already
+// escapes control characters in string values.
+func sanitizeOutputText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\t' {
+			return r
+		}
+		if r < 0x20 || r == 0x7F {
+			return ' '
+		}
+		return r
+	}, s)
 }
