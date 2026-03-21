@@ -262,3 +262,18 @@ func TestReportProgressSkipsExpansionAfterTwoTerminalPolls(t *testing.T) {
 
 	require.Equal(t, 1, walkRm.childVisits)
 }
+
+func TestDisplayedResourceCount(t *testing.T) {
+	mockRM := &mockResourceManager{}
+	progressDisplay := NewProvisioningProgressDisplay(mockRM, nil, nil)
+
+	// Initially, no resources have been displayed
+	require.Equal(t, 0, progressDisplay.DisplayedResourceCount())
+
+	// Simulate resources being tracked as displayed (internal state)
+	progressDisplay.displayedResources["resource-1"] = true
+	require.Equal(t, 1, progressDisplay.DisplayedResourceCount())
+
+	progressDisplay.displayedResources["resource-2"] = true
+	require.Equal(t, 2, progressDisplay.DisplayedResourceCount())
+}

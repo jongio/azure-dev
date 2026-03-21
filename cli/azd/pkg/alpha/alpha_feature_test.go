@@ -244,3 +244,68 @@ func newFeatureManagerForTest(alphaFeatureResolver func() []Feature, config conf
 		withSync:              &sync.Once{},
 	}
 }
+
+func Test_AllPerformanceAlphaFeaturesRegistered(t *testing.T) {
+	// Verify that all performance-related alpha features expected by the parallel
+	// provisioning and deployment code are registered in alpha_features.yaml.
+	// If a feature is referenced in code via alpha.MustFeatureKey but not present
+	// in the YAML, the process would panic at init time.
+	expectedFeatures := []string{
+		"deploy.parallel",
+		"up.concurrent",
+		"provision.parallel",
+		"provision.adaptivePolling",
+		"deploy.smartApi",
+		"provision.localCache",
+	}
+
+	for _, id := range expectedFeatures {
+		t.Run(id, func(t *testing.T) {
+			featureId, isAlpha := IsFeatureKey(id)
+			require.True(t, isAlpha, "feature %q should be registered in alpha_features.yaml", id)
+			require.Equal(t, FeatureId(id), featureId)
+		})
+	}
+}
+
+func Test_AlphaFeature_ConcurrentIsEnabled(t *testing.T) {
+	t.Parallel()
+
+	// Create a manager with multiple features
+	features := []Feature{}
+	for i := 0; i < 20; i++ {
+		features = append(features, Feature{
+			Id:          fmt.Sprintf("test.concurrent.%d", i),
+			Description: fmt.Sprintf("Test feature %d", i),
+		})
+	}
+
+	// Use config.Set to properly handle dot-separated key paths (alpha.test.concurrent.N)
+	mockConfig := config.NewConfig(nil)
+	require.NoError(t, mockConfig.Set(fmt.Sprintf("%s.%s", parentKey, "test.concurrent.0"), enabledValue))
+	require.NoError(t, mockConfig.Set(fmt.Sprintf("%s.%s", parentKey, "test.concurrent.5"), enabledValue))
+
+	manager := newFeatureManagerForTest(func() []Feature { return features }, mockConfig)
+
+	// Hammer IsEnabled from multiple goroutines to verify thread-safety.
+	// The sync.Once inside FeatureManager must not race.
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			featureId := FeatureId(fmt.Sprintf("test.concurrent.%d", idx%20))
+			// Must not panic or race
+			_ = manager.IsEnabled(featureId)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify correctness after concurrent access
+	require.True(t, manager.IsEnabled(FeatureId("test.concurrent.0")))
+	require.True(t, manager.IsEnabled(FeatureId("test.concurrent.5")))
+	require.False(t, manager.IsEnabled(FeatureId("test.concurrent.1")))
+}

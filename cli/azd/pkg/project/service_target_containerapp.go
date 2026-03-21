@@ -5,6 +5,8 @@ package project
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,10 +15,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/azure/azure-dev/cli/azd/internal/mapper"
 	"github.com/azure/azure-dev/cli/azd/internal/tracing"
 	"github.com/azure/azure-dev/cli/azd/internal/tracing/fields"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/async"
 	"github.com/azure/azure-dev/cli/azd/pkg/azapi"
 	"github.com/azure/azure-dev/cli/azd/pkg/azure"
@@ -31,6 +35,16 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/tools/docker"
 )
 
+// templateHashMu protects concurrent reads/writes to the shared environment map
+// for SERVICE_{NAME}_TEMPLATE_HASH keys. Environment.DotenvSet and Getenv are not
+// goroutine-safe, so when deploy.parallel and deploy.smartApi are both enabled,
+// concurrent Deploy calls must serialize their access to these keys.
+//
+// This is a package-level mutex (rather than instance-level) because all containerAppTarget
+// instances in a single azd run share the same *environment.Environment pointer.
+// A per-instance mutex would not protect against cross-instance races on the shared map.
+var templateHashMu sync.Mutex
+
 type containerAppTarget struct {
 	env                 *environment.Environment
 	envManager          environment.Manager
@@ -40,6 +54,7 @@ type containerAppTarget struct {
 	armDeployments      *azapi.StandardDeployments
 	console             input.Console
 	commandRunner       exec.CommandRunner
+	alphaFeatureManager *alpha.FeatureManager
 
 	bicepCli func() (*bicep.Cli, error)
 }
@@ -57,6 +72,7 @@ func NewContainerAppTarget(
 	deploymentService *azapi.StandardDeployments,
 	console input.Console,
 	commandRunner exec.CommandRunner,
+	alphaFeatureManager *alpha.FeatureManager,
 ) ServiceTarget {
 	return &containerAppTarget{
 		env:                 env,
@@ -67,6 +83,7 @@ func NewContainerAppTarget(
 		armDeployments:      deploymentService,
 		console:             console,
 		commandRunner:       commandRunner,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 
@@ -222,6 +239,12 @@ func (at *containerAppTarget) Deploy(
 		if _, err := os.Stat(bicepParametersPath); err == nil {
 			controlledRevision = true
 		}
+	}
+
+	// Smart deploy API: prefer direct revision API for code-only changes when template is unchanged.
+	// This avoids the overhead of full ARM template revalidation when only the container image tag changed.
+	if controlledRevision && at.shouldUseDirectRevisionAPI(serviceConfig, mainPath) {
+		controlledRevision = false
 	}
 
 	if controlledRevision {
@@ -416,6 +439,48 @@ func (at *containerAppTarget) Endpoints(
 
 		return endpoints, nil
 	}
+}
+
+// shouldUseDirectRevisionAPI checks whether the service's infrastructure template is unchanged
+// since the last deployment, indicating that only the container image tag changed and the
+// cheaper direct revision API can be used instead of a full ARM template deployment.
+// It requires the deploy.smartApi alpha feature to be enabled.
+// The templateHashMu mutex serializes access to the shared environment map for concurrent deploys.
+func (at *containerAppTarget) shouldUseDirectRevisionAPI(
+	serviceConfig *ServiceConfig,
+	mainPath string,
+) bool {
+	if at.alphaFeatureManager == nil ||
+		!at.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.smartApi")) {
+		return false
+	}
+
+	templateContent, readErr := os.ReadFile(mainPath)
+	if readErr != nil {
+		return false
+	}
+
+	currentHash := sha256.Sum256(templateContent)
+	currentHashStr := hex.EncodeToString(currentHash[:])
+	envHashKey := fmt.Sprintf("SERVICE_%s_TEMPLATE_HASH", strings.ToUpper(serviceConfig.Name))
+
+	// Serialize access to the shared Environment map. DotenvSet and Getenv operate
+	// on an unprotected map[string]string, so concurrent calls (when deploy.parallel
+	// is enabled) would be a data race.
+	templateHashMu.Lock()
+	previousHash := at.env.Getenv(envHashKey)
+	at.env.DotenvSet(envHashKey, currentHashStr)
+	templateHashMu.Unlock()
+
+	if currentHashStr == previousHash {
+		log.Printf(
+			"deploy.smartApi: template unchanged for %s, using direct revision API",
+			serviceConfig.Name,
+		)
+		return true
+	}
+
+	return false
 }
 
 func (at *containerAppTarget) validateTargetResource(

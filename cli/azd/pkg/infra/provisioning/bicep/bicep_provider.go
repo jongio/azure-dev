@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/azure/azure-dev/cli/azd/pkg/account"
 	"github.com/azure/azure-dev/cli/azd/pkg/ai"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/async"
 	"github.com/azure/azure-dev/cli/azd/pkg/azapi"
 	"github.com/azure/azure-dev/cli/azd/pkg/azure"
@@ -87,10 +88,53 @@ type BicepProvider struct {
 	subscriptionManager *account.SubscriptionsManager
 	aiModelService      *ai.AiModelService
 	serviceLocator      ioc.ServiceLocator
+	alphaFeatureManager *alpha.FeatureManager
 
 	// Internal state
 	// compileBicepResult is cached to avoid recompiling the same bicep file multiple times in the same azd run.
 	compileBicepMemoryCache *compileBicepResult
+}
+
+var adaptivePollingFeatureKey = alpha.MustFeatureKey("provision.adaptivePolling")
+
+// adaptivePoller implements exponential backoff for deployment polling.
+// It starts at a fast interval and backs off when the deployment state is unchanged,
+// resetting to fast polling when new resources complete or fail.
+type adaptivePoller struct {
+	minInterval     time.Duration
+	maxInterval     time.Duration
+	currentInterval time.Duration
+	backoffFactor   float64
+	lastResourceCount int
+}
+
+func newAdaptivePoller() *adaptivePoller {
+	return &adaptivePoller{
+		minInterval:     1 * time.Second,
+		maxInterval:     10 * time.Second,
+		currentInterval: 1 * time.Second,
+		backoffFactor:   2.0,
+		lastResourceCount: -1,
+	}
+}
+
+// nextInterval returns the next polling interval based on whether the deployment state has changed.
+// When resourceCount changes (new resources completed/failed), the interval resets to the minimum.
+// When unchanged, the interval increases exponentially up to the maximum.
+func (ap *adaptivePoller) nextInterval(resourceCount int) time.Duration {
+	if resourceCount != ap.lastResourceCount {
+		// State changed — reset to fast polling
+		ap.currentInterval = ap.minInterval
+		ap.lastResourceCount = resourceCount
+	} else {
+		// State unchanged — back off
+		next := time.Duration(float64(ap.currentInterval) * ap.backoffFactor)
+		if next > ap.maxInterval {
+			next = ap.maxInterval
+		}
+		ap.currentInterval = next
+	}
+	return ap.currentInterval
 }
 
 // Name gets the name of the infra provider
@@ -633,6 +677,20 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 		logDS("%s", parametersHashErr.Error())
 	}
 
+	// Local deployment state cache check (alpha feature: provision.localCache).
+	// When enabled, compares local template/parameter hashes and source file mod time against a cached
+	// state to skip the Azure API round-trip entirely.
+	if !p.ignoreDeploymentState && parametersHashErr == nil &&
+		p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) {
+		cachedResult, localCacheErr := p.checkLocalDeploymentCache(ctx, planned, currentParamsHash, &result)
+		if localCacheErr != nil {
+			logDS("local cache check failed, falling back to Azure API: %s", localCacheErr.Error())
+		}
+		if cachedResult != nil {
+			return cachedResult, nil
+		}
+	}
+
 	if !p.ignoreDeploymentState && parametersHashErr == nil {
 		deploymentState, stateErr := p.deploymentState(ctx, planned, deployment, currentParamsHash)
 		if stateErr == nil {
@@ -661,6 +719,11 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 				planned.Template.Outputs,
 				azapi.CreateDeploymentOutput(deploymentState.Outputs),
 			)
+
+			// Update local cache so the next run can skip the Azure API call entirely.
+			if p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) {
+				p.updateLocalDeploymentCache(planned, currentParamsHash, result.Outputs)
+			}
 
 			return &provisioning.DeployResult{
 				Deployment:    &result,
@@ -740,9 +803,21 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 
 		// Report incremental progress
 		progressDisplay := p.deploymentManager.ProgressDisplay(deployment)
-		delay := 3 * time.Second
-		timer := time.NewTimer(delay)
 		queryStartTime := time.Now()
+
+		useAdaptivePolling := p.alphaFeatureManager != nil &&
+			p.alphaFeatureManager.IsEnabled(adaptivePollingFeatureKey)
+
+		var poller *adaptivePoller
+		var delay time.Duration
+		if useAdaptivePolling {
+			poller = newAdaptivePoller()
+			delay = poller.minInterval
+		} else {
+			delay = 3 * time.Second
+		}
+
+		timer := time.NewTimer(delay)
 
 		for {
 			select {
@@ -755,6 +830,9 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 					log.Printf("error while reporting progress: %v", err)
 				}
 
+				if useAdaptivePolling {
+					delay = poller.nextInterval(progressDisplay.DisplayedResourceCount())
+				}
 				timer.Reset(delay)
 			}
 		}
@@ -779,6 +857,13 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 		planned.Template.Outputs,
 		azapi.CreateDeploymentOutput(deployResult.Outputs),
 	)
+
+	// Update local cache after a successful deployment so subsequent runs can skip
+	// both the Azure API state check and the deployment itself.
+	if p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) &&
+		parametersHashErr == nil {
+		p.updateLocalDeploymentCache(planned, currentParamsHash, result.Outputs)
+	}
 
 	return &provisioning.DeployResult{
 		Deployment: &result,
@@ -2721,6 +2806,7 @@ func NewBicepProvider(
 	subscriptionManager *account.SubscriptionsManager,
 	aiModelService *ai.AiModelService,
 	serviceLocator ioc.ServiceLocator,
+	alphaFeatureManager *alpha.FeatureManager,
 ) provisioning.Provider {
 	return &BicepProvider{
 		envManager:          envManager,
@@ -2738,6 +2824,7 @@ func NewBicepProvider(
 		subscriptionManager: subscriptionManager,
 		aiModelService:      aiModelService,
 		serviceLocator:      serviceLocator,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 

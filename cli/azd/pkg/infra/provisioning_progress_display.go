@@ -40,6 +40,9 @@ type ProvisioningProgressDisplay struct {
 	deployment      Deployment
 }
 
+// NewProvisioningProgressDisplay creates a new ProvisioningProgressDisplay that tracks and renders
+// interactive progress for the given deployment. It is not safe for concurrent use; callers must
+// ensure that ReportProgress is called sequentially (e.g. from a single polling goroutine).
 func NewProvisioningProgressDisplay(
 	rm ResourceManager,
 	console input.Console,
@@ -84,6 +87,12 @@ func (display *ProvisioningProgressDisplay) getResourceTypeDisplayName(
 	// Cache the result (even if empty)
 	display.resourceDisplayNames[resourceId] = displayName
 	return displayName
+}
+
+// DisplayedResourceCount returns the count of resources that have been displayed (completed or failed).
+// This is used by adaptive polling to detect state changes between polls.
+func (display *ProvisioningProgressDisplay) DisplayedResourceCount() int {
+	return len(display.displayedResources)
 }
 
 // ReportProgress reports the current deployment progress, setting the currently executing operation title and logging

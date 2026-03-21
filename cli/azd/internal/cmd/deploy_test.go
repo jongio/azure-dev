@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"strconv"
 	"strings"
@@ -461,4 +462,37 @@ type mockDeployError struct {
 
 func (e *mockDeployError) Error() string {
 	return e.name
+}
+
+func TestDeploymentResultJSON(t *testing.T) {
+	result := DeploymentResult{
+		Timestamp: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
+		Services: map[string]*project.ServiceDeployResult{
+			"api": {
+				DeployDurationMs: 12345,
+			},
+			"web": {
+				DeployDurationMs: 8765,
+			},
+		},
+	}
+
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+
+	services, ok := parsed["services"].(map[string]any)
+	require.True(t, ok, "services should be a map")
+	require.Len(t, services, 2)
+
+	api, ok := services["api"].(map[string]any)
+	require.True(t, ok, "api service should be a map")
+	require.Equal(t, float64(12345), api["deployDurationMs"])
+
+	web, ok := services["web"].(map[string]any)
+	require.True(t, ok, "web service should be a map")
+	require.Equal(t, float64(8765), web["deployDurationMs"])
 }

@@ -70,15 +70,18 @@ type PackageOptions struct {
 
 // ServicePackageResult is the result of a successful Package operation
 type ServicePackageResult struct {
-	Artifacts ArtifactCollection `json:"artifacts"`
+	Artifacts         ArtifactCollection `json:"artifacts"`
+	PackageDurationMs int64              `json:"packageDurationMs,omitempty"`
 }
 
 // ServicePublishResult is the result of a successful Publish operation for services.
 type ServicePublishResult struct {
-	Artifacts ArtifactCollection `json:"artifacts"`
+	Artifacts         ArtifactCollection `json:"artifacts"`
+	PublishDurationMs int64              `json:"publishDurationMs,omitempty"`
 }
 
 // ServiceDeployResult is the result of a successful Deploy operation
 type ServiceDeployResult struct {
-	Artifacts ArtifactCollection `json:"artifacts"`
+	Artifacts        ArtifactCollection `json:"artifacts"`
+	DeployDurationMs int64              `json:"deployDurationMs,omitempty"`
 }

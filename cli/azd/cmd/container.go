@@ -998,6 +998,46 @@ func extractGlobalArgs() []string {
 	return result
 }
 
+// FindAndExecute implements workflow.ConcurrentExecutor.
+// It finds the target sub-command from the given args and invokes its RunE directly,
+// bypassing the shared cobra.Command.args field that makes the standard
+// SetArgs + ExecuteContext path unsafe for concurrent use.
+//
+// This is safe for concurrent calls because:
+//   - cobra.Command.Find is a read-only traversal of the (immutable) command tree
+//   - Each found sub-command (e.g. "package", "provision") is a distinct *cobra.Command
+//     with its own FlagSet, context, and RunE closure
+//   - RunE creates a fresh DI scope per invocation (see cobra_builder.go)
+//
+// SAFETY: Callers must ensure concurrent calls use distinct subcommand paths
+// (different first arg). Calling with identical subcommands concurrently is a
+// data race because cobra.Command.Find returns the same *cobra.Command pointer
+// for the same path, and ParseFlags/SetContext mutate that shared instance.
+//
+// Note: This bypasses cobra's PersistentPreRunE/PersistentPostRunE hooks. Callers must
+// ensure those hooks have already executed (e.g. via a parent command's normal dispatch).
+func (w *workflowCmdAdapter) FindAndExecute(ctx context.Context, args []string) error {
+	cmd, remainingArgs, err := w.cmd.Find(args)
+	if err != nil {
+		return fmt.Errorf("finding command '%s': %w", strings.Join(args, " "), err)
+	}
+
+	childCtx := middleware.WithChildAction(ctx)
+	cmd.SetContext(childCtx)
+
+	if err := cmd.ParseFlags(remainingArgs); err != nil {
+		return fmt.Errorf("parsing flags for '%s': %w", cmd.Name(), err)
+	}
+
+	cmdArgs := cmd.Flags().Args()
+
+	if cmd.RunE == nil {
+		return fmt.Errorf("command '%s' has no RunE handler", cmd.Name())
+	}
+
+	return cmd.RunE(cmd, cmdArgs)
+}
+
 // ArmClientInitializer is a function definition for all Azure SDK ARM Client
 type ArmClientInitializer[T comparable] func(
 	subscriptionId string,

@@ -301,6 +301,7 @@ func createContainerAppServiceTarget(
 		deploymentService,
 		mockContext.Console,
 		mockContext.CommandRunner,
+		mockContext.AlphaFeaturesManager,
 	)
 }
 

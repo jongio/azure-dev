@@ -89,3 +89,79 @@ func TestArtifactKindEnums(t *testing.T) {
 	// Test that string conversion works
 	require.Equal(t, "container", string(ArtifactKindContainer))
 }
+
+func TestServicePackageResultTimingJSON(t *testing.T) {
+	result := ServicePackageResult{
+		PackageDurationMs: 1234,
+	}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	require.Equal(t, float64(1234), parsed["packageDurationMs"])
+}
+
+func TestServicePackageResultTimingOmitEmpty(t *testing.T) {
+	result := ServicePackageResult{}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	// packageDurationMs has omitempty so it should be absent when zero
+	_, has := parsed["packageDurationMs"]
+	require.False(t, has, "packageDurationMs should be omitted when zero")
+}
+
+func TestServicePublishResultTimingJSON(t *testing.T) {
+	result := ServicePublishResult{
+		PublishDurationMs: 5678,
+	}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	require.Equal(t, float64(5678), parsed["publishDurationMs"])
+}
+
+func TestServicePublishResultTimingOmitEmpty(t *testing.T) {
+	result := ServicePublishResult{}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	_, has := parsed["publishDurationMs"]
+	require.False(t, has, "publishDurationMs should be omitted when zero")
+}
+
+func TestServiceDeployResultTimingJSON(t *testing.T) {
+	result := ServiceDeployResult{
+		DeployDurationMs: 9012,
+	}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	require.Equal(t, float64(9012), parsed["deployDurationMs"])
+}
+
+func TestServiceDeployResultTimingOmitEmpty(t *testing.T) {
+	result := ServiceDeployResult{}
+	data, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+	_, has := parsed["deployDurationMs"]
+	require.False(t, has, "deployDurationMs should be omitted when zero")
+}

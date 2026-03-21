@@ -12,10 +12,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/azure/azure-dev/cli/azd/cmd/actions"
 	"github.com/azure/azure-dev/cli/azd/internal"
+	"github.com/azure/azure-dev/cli/azd/internal/tracing"
 	"github.com/azure/azure-dev/cli/azd/pkg/account"
 	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/apphost"
@@ -31,6 +33,9 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/project"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 type DeployFlags struct {
@@ -268,130 +273,20 @@ func (da *DeployAction) Run(ctx context.Context) (*actions.ActionResult, error) 
 	}
 
 	deployResults := map[string]*project.ServiceDeployResult{}
-	deployTimeout, err := da.resolveDeployTimeout()
-	if err != nil {
-		return nil, err
-	}
 
 	err = da.projectConfig.Invoke(ctx, project.ProjectEventDeploy, projectEventArgs, func() error {
+		if da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.parallel")) {
+			return da.deployServicesParallel(ctx, stableServices, deployResults)
+		}
+
 		for _, svc := range stableServices {
-			stepMessage := fmt.Sprintf("Deploying service %s", svc.Name)
-			da.console.ShowSpinner(ctx, stepMessage, input.Step)
-
-			if alphaFeatureId, isAlphaFeature := alpha.IsFeatureKey(string(svc.Host)); isAlphaFeature {
-				// alpha feature on/off detection for host is done during initialization.
-				// This is just for displaying the warning during deployment.
-				da.console.WarnForFeature(ctx, alphaFeatureId)
-			}
-
-			// Initialize service context for tracking artifacts across operations
-			serviceContext := project.NewServiceContext()
-
-			if da.flags.fromPackage != "" {
-				// --from-package set, skip packaging and create package artifact
-				err = serviceContext.Package.Add(&project.Artifact{
-					Kind:         determineArtifactKind(da.flags.fromPackage),
-					Location:     da.flags.fromPackage,
-					LocationKind: project.LocationKindLocal,
-				})
-
-				if err != nil {
-					da.console.StopSpinner(ctx, stepMessage, input.StepFailed)
-					return err
-				}
-			} else {
-				//  --from-package not set, automatically package the application
-				_, err := async.RunWithProgress(
-					func(packageProgress project.ServiceProgress) {
-						progressMessage := fmt.Sprintf("Packaging service %s (%s)", svc.Name, packageProgress.Message)
-						da.console.ShowSpinner(ctx, progressMessage, input.Step)
-					},
-					func(progress *async.Progress[project.ServiceProgress]) (*project.ServicePackageResult, error) {
-						return da.serviceManager.Package(ctx, svc, serviceContext, progress, nil)
-					},
-				)
-
-				// do not stop progress here as next step is to publish
-				if err != nil {
-					da.console.StopSpinner(ctx, stepMessage, input.StepFailed)
-					return err
-				}
-			}
-
-			_, err := async.RunWithProgress(
-				func(publishProgress project.ServiceProgress) {
-					progressMessage := fmt.Sprintf("Publishing service %s (%s)", svc.Name, publishProgress.Message)
-					da.console.ShowSpinner(ctx, progressMessage, input.Step)
-				},
-				func(progress *async.Progress[project.ServiceProgress]) (*project.ServicePublishResult, error) {
-					return da.serviceManager.Publish(ctx, svc, serviceContext, progress, nil)
-				},
-			)
-
-			// do not stop progress here as next step is to deploy
+			deployResult, err := da.deploySingleService(ctx, svc)
 			if err != nil {
-				da.console.StopSpinner(ctx, stepMessage, input.StepFailed)
 				return err
 			}
 
-			deployCtx, deployCancel := context.WithTimeout(ctx, deployTimeout)
-			defer deployCancel()
 
-			deployResult, err := async.RunWithProgress(
-				func(deployProgress project.ServiceProgress) {
-					progressMessage := fmt.Sprintf("Deploying service %s (%s)", svc.Name, deployProgress.Message)
-					da.console.ShowSpinner(ctx, progressMessage, input.Step)
-				},
-				func(progress *async.Progress[project.ServiceProgress]) (*project.ServiceDeployResult, error) {
-					return da.serviceManager.Deploy(deployCtx, svc, serviceContext, progress)
-				},
-			)
-
-			if err != nil {
-				da.console.StopSpinner(ctx, stepMessage, input.StepFailed)
-				if deployCtx.Err() == context.DeadlineExceeded {
-					warnMsg := fmt.Sprintf(
-						"Deployment of service '%s' exceeded the azd wait timeout."+
-							" azd has stopped waiting, but the deployment may"+
-							" still be running in Azure.",
-						svc.Name,
-					)
-					da.console.MessageUxItem(ctx, &ux.WarningMessage{
-						Description: warnMsg,
-						Hints: []string{
-							"Check the Azure Portal for current deployment status.",
-							"Increase timeout with --timeout flag or AZD_DEPLOY_TIMEOUT env var.",
-						},
-					})
-
-					return fmt.Errorf(
-						"deployment of service '%s' timed out after %d seconds. To increase, use --timeout flag "+
-							"or AZD_DEPLOY_TIMEOUT env var. Note: azd has stopped "+
-							"waiting, but the deployment may still be running in Azure. Check the Azure Portal for "+
-							"current deployment status.",
-						svc.Name,
-						int(deployTimeout.Seconds()),
-					)
-				}
-				return err
-			}
-
-			// clean up for packages automatically created in temp dir
-			if da.flags.fromPackage == "" {
-				for _, artifact := range serviceContext.Package {
-					if artifact.Kind == project.ArtifactKindArchive && strings.HasPrefix(artifact.Location, os.TempDir()) {
-						if err := os.RemoveAll(artifact.Location); err != nil {
-							log.Printf("failed to remove temporary package: %s : %s", artifact.Location, err)
-						}
-					}
-				}
-			}
-
-			da.console.StopSpinner(ctx, stepMessage, input.GetStepResultFormat(err))
 			deployResults[svc.Name] = deployResult
-
-			// report deploy outputs
-			da.console.MessageUxItem(ctx, deployResult.Artifacts)
 		}
 
 		return nil
@@ -458,6 +353,181 @@ func (da *DeployAction) resolveDeployTimeout() (time.Duration, error) {
 	}
 
 	return time.Duration(defaultDeployTimeoutSeconds) * time.Second, nil
+}
+
+// deployServicesParallel deploys all services concurrently using errgroup.
+// Each goroutine handles one service's full lifecycle: Package → Publish → Deploy.
+// Protected by the deploy.parallel alpha feature flag.
+func (da *DeployAction) deployServicesParallel(
+	ctx context.Context,
+	stableServices []*project.ServiceConfig,
+	deployResults map[string]*project.ServiceDeployResult,
+) error {
+	var mu sync.Mutex
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// Optional concurrency limit from env var
+	if limit := os.Getenv("AZD_DEPLOY_CONCURRENCY"); limit != "" {
+		if n, err := strconv.Atoi(limit); err == nil && n > 0 {
+			g.SetLimit(n)
+		}
+	}
+
+	for _, svc := range stableServices {
+		g.Go(func() error {
+			deployResult, err := da.deploySingleService(gCtx, svc)
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			deployResults[svc.Name] = deployResult
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+// deploySingleService executes the full deploy lifecycle for a single service:
+// Package → Publish → Deploy → temp cleanup. Both the sequential and parallel
+// deploy paths delegate to this helper; orchestration (serial iteration vs errgroup)
+// and result storage remain in the callers.
+func (da *DeployAction) deploySingleService(
+	ctx context.Context,
+	svc *project.ServiceConfig,
+) (*project.ServiceDeployResult, error) {
+	svcCtx, svcSpan := tracing.Start(ctx, "azd.deploy.service."+svc.Name,
+		trace.WithAttributes(attribute.String("service.name", svc.Name)))
+
+	stepMessage := fmt.Sprintf("Deploying service %s", svc.Name)
+	da.console.ShowSpinner(svcCtx, stepMessage, input.Step)
+
+	if alphaFeatureId, isAlphaFeature := alpha.IsFeatureKey(string(svc.Host)); isAlphaFeature {
+		da.console.WarnForFeature(svcCtx, alphaFeatureId)
+	}
+
+	serviceContext := project.NewServiceContext()
+
+	if da.flags.fromPackage != "" {
+		// --from-package set, skip packaging and create package artifact
+		err := serviceContext.Package.Add(&project.Artifact{
+			Kind:         determineArtifactKind(da.flags.fromPackage),
+			Location:     da.flags.fromPackage,
+			LocationKind: project.LocationKindLocal,
+		})
+		if err != nil {
+			da.console.StopSpinner(svcCtx, stepMessage, input.StepFailed)
+			svcSpan.EndWithStatus(err)
+			return nil, err
+		}
+	} else {
+		// --from-package not set, automatically package the application
+		packageStart := time.Now()
+		packageResult, err := async.RunWithProgress(
+			func(packageProgress project.ServiceProgress) {
+				progressMessage := fmt.Sprintf("Packaging service %s (%s)", svc.Name, packageProgress.Message)
+				da.console.ShowSpinner(svcCtx, progressMessage, input.Step)
+			},
+			func(progress *async.Progress[project.ServiceProgress]) (*project.ServicePackageResult, error) {
+				return da.serviceManager.Package(svcCtx, svc, serviceContext, progress, nil)
+			},
+		)
+		if err != nil {
+			da.console.StopSpinner(svcCtx, stepMessage, input.StepFailed)
+			svcSpan.EndWithStatus(err)
+			return nil, err
+		}
+		packageResult.PackageDurationMs = time.Since(packageStart).Milliseconds()
+	}
+
+	publishStart := time.Now()
+	publishResult, err := async.RunWithProgress(
+		func(publishProgress project.ServiceProgress) {
+			progressMessage := fmt.Sprintf("Publishing service %s (%s)", svc.Name, publishProgress.Message)
+			da.console.ShowSpinner(svcCtx, progressMessage, input.Step)
+		},
+		func(progress *async.Progress[project.ServiceProgress]) (*project.ServicePublishResult, error) {
+			return da.serviceManager.Publish(svcCtx, svc, serviceContext, progress, nil)
+		},
+	)
+	if err != nil {
+		da.console.StopSpinner(svcCtx, stepMessage, input.StepFailed)
+		svcSpan.EndWithStatus(err)
+		return nil, err
+	}
+	publishResult.PublishDurationMs = time.Since(publishStart).Milliseconds()
+
+	deployTimeout, err := da.resolveDeployTimeout()
+	if err != nil {
+		da.console.StopSpinner(svcCtx, stepMessage, input.StepFailed)
+		svcSpan.EndWithStatus(err)
+		return nil, err
+	}
+
+	deployCtx, deployCancel := context.WithTimeout(svcCtx, deployTimeout)
+	defer deployCancel()
+
+	deployStart := time.Now()
+	deployResult, err := async.RunWithProgress(
+		func(deployProgress project.ServiceProgress) {
+			progressMessage := fmt.Sprintf("Deploying service %s (%s)", svc.Name, deployProgress.Message)
+			da.console.ShowSpinner(svcCtx, progressMessage, input.Step)
+		},
+		func(progress *async.Progress[project.ServiceProgress]) (*project.ServiceDeployResult, error) {
+			return da.serviceManager.Deploy(deployCtx, svc, serviceContext, progress)
+		},
+	)
+	if err != nil {
+		da.console.StopSpinner(svcCtx, stepMessage, input.StepFailed)
+		if deployCtx.Err() == context.DeadlineExceeded {
+			warnMsg := fmt.Sprintf(
+				"Deployment of service '%s' exceeded the azd wait timeout."+
+					" azd has stopped waiting, but the deployment may"+
+					" still be running in Azure.",
+				svc.Name,
+			)
+			da.console.MessageUxItem(svcCtx, &ux.WarningMessage{
+				Description: warnMsg,
+				Hints: []string{
+					"Check the Azure Portal for current deployment status.",
+					"Increase timeout with --timeout flag or AZD_DEPLOY_TIMEOUT env var.",
+				},
+			})
+
+			svcSpan.EndWithStatus(err)
+			return nil, fmt.Errorf(
+				"deployment of service '%s' timed out after %d seconds. To increase, use --timeout flag "+
+					"or AZD_DEPLOY_TIMEOUT env var. Note: azd has stopped "+
+					"waiting, but the deployment may still be running in Azure. Check the Azure Portal for "+
+					"current deployment status.",
+				svc.Name,
+				int(deployTimeout.Seconds()),
+			)
+		}
+		svcSpan.EndWithStatus(err)
+		return nil, err
+	}
+	deployResult.DeployDurationMs = time.Since(deployStart).Milliseconds()
+
+	// Clean up packages automatically created in temp dir
+	if da.flags.fromPackage == "" {
+		for _, artifact := range serviceContext.Package {
+			if artifact.Kind == project.ArtifactKindArchive && strings.HasPrefix(artifact.Location, os.TempDir()) {
+				if err := os.RemoveAll(artifact.Location); err != nil {
+					log.Printf("failed to remove temporary package: %s : %s", artifact.Location, err)
+				}
+			}
+		}
+	}
+
+	da.console.StopSpinner(svcCtx, stepMessage, input.GetStepResultFormat(err))
+	da.console.MessageUxItem(svcCtx, deployResult.Artifacts)
+	svcSpan.EndWithStatus(nil)
+
+	return deployResult, nil
 }
 
 func GetCmdDeployHelpDescription(*cobra.Command) string {

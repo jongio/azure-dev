@@ -13,6 +13,8 @@ import (
 	"github.com/azure/azure-dev/cli/azd/cmd/actions"
 	"github.com/azure/azure-dev/cli/azd/internal"
 	"github.com/azure/azure-dev/cli/azd/internal/cmd"
+	"github.com/azure/azure-dev/cli/azd/internal/tracing"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning/bicep"
@@ -67,6 +69,7 @@ type upAction struct {
 	prompters           prompt.Prompter
 	importManager       *project.ImportManager
 	workflowRunner      *workflow.Runner
+	alphaFeatureManager *alpha.FeatureManager
 }
 
 var defaultUpWorkflow = &workflow.Workflow{
@@ -88,6 +91,7 @@ func newUpAction(
 	prompters prompt.Prompter,
 	importManager *project.ImportManager,
 	workflowRunner *workflow.Runner,
+	alphaFeatureManager *alpha.FeatureManager,
 ) actions.Action {
 	return &upAction{
 		flags:               flags,
@@ -99,6 +103,7 @@ func newUpAction(
 		prompters:           prompters,
 		importManager:       importManager,
 		workflowRunner:      workflowRunner,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 
@@ -157,19 +162,31 @@ func (u *upAction) Run(ctx context.Context) (*actions.ActionResult, error) {
 
 	startTime := time.Now()
 
-	upWorkflow, has := u.projectConfig.Workflows["up"]
-	if !has {
-		upWorkflow = defaultUpWorkflow
-	} else {
-		u.console.Message(ctx, output.WithGrayFormat("Note: Running custom 'up' workflow from azure.yaml"))
-	}
+	ctx, upSpan := tracing.Start(ctx, "azd.up.workflow")
+	defer upSpan.EndWithStatus(nil)
 
 	if u.flags.EnvironmentName != "" {
 		ctx = context.WithValue(ctx, envFlagCtxKey, u.flags.EnvFlag)
 	}
 
-	if err := u.workflowRunner.Run(ctx, upWorkflow); err != nil {
-		return nil, err
+	upWorkflow, has := u.projectConfig.Workflows["up"]
+	if !has {
+		// Default workflow: optionally run package and provision concurrently.
+		if u.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("up.concurrent")) {
+			if err := u.runConcurrentUp(ctx); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := u.workflowRunner.Run(ctx, defaultUpWorkflow); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		// Custom workflow from azure.yaml: always sequential (user controls order).
+		u.console.Message(ctx, output.WithGrayFormat("Note: Running custom 'up' workflow from azure.yaml"))
+		if err := u.workflowRunner.Run(ctx, upWorkflow); err != nil {
+			return nil, err
+		}
 	}
 
 	return &actions.ActionResult{
@@ -178,6 +195,33 @@ func (u *upAction) Run(ctx context.Context) (*actions.ActionResult, error) {
 				ux.DurationAsText(since(startTime))),
 		},
 	}, nil
+}
+
+// runConcurrentUp runs the default up workflow with the package and provision phases overlapping.
+// Package (local builds) and provision (Azure infrastructure) are fully independent operations,
+// so running them concurrently can significantly reduce total wall-clock time.
+// Deploy runs only after both complete, since it requires both package artifacts and
+// provisioned infrastructure.
+func (u *upAction) runConcurrentUp(ctx context.Context) error {
+	// Phase 1: Run package and provision concurrently
+	concurrentSteps := []*workflow.Step{
+		workflow.NewAzdCommandStep("package", "--all"),
+		workflow.NewAzdCommandStep("provision"),
+	}
+
+	if err := u.workflowRunner.RunConcurrentSteps(ctx, concurrentSteps); err != nil {
+		return err
+	}
+
+	// Phase 2: Deploy (needs both package artifacts and provisioned infrastructure)
+	deployWorkflow := &workflow.Workflow{
+		Name: "up:deploy",
+		Steps: []*workflow.Step{
+			workflow.NewAzdCommandStep("deploy", "--all"),
+		},
+	}
+
+	return u.workflowRunner.Run(ctx, deployWorkflow)
 }
 
 func getCmdUpHelpDescription(c *cobra.Command) string {
