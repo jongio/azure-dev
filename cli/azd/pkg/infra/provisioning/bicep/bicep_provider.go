@@ -85,6 +85,10 @@ type BicepProvider struct {
 	// Internal state
 	// compileBicepResult is cached to avoid recompiling the same bicep file multiple times in the same azd run.
 	compileBicepMemoryCache *compileBicepResult
+	// rgExistsCache caches resource group existence checks to skip redundant ARM API calls
+	// within the same azd run. ARM's CreateOrUpdate is idempotent, so once we know an RG
+	// exists, we don't need to re-check.
+	rgExistsCache map[string]bool
 	// Options that are available after Initialize()
 	options               provisioning.Options
 	projectPath           string
@@ -95,7 +99,29 @@ type BicepProvider struct {
 	ignoreDeploymentState bool
 }
 
+// checkResourceGroupExists checks if a resource group exists, using a session-level cache
+// to skip redundant ARM API calls within the same azd run.
+func (p *BicepProvider) checkResourceGroupExists(
+	ctx context.Context,
+	resId arm.ResourceID,
+	apiVersion string,
+) (bool, error) {
+	cacheKey := resId.String()
+	if exists, cached := p.rgExistsCache[cacheKey]; cached {
+		return exists, nil
+	}
+
+	exists, err := p.resourceService.CheckExistenceByID(ctx, resId, apiVersion)
+	if err != nil {
+		return false, err
+	}
+
+	p.rgExistsCache[cacheKey] = exists
+	return exists, nil
+}
+
 var adaptivePollingFeatureKey = alpha.MustFeatureKey("provision.adaptivePolling")
+var skipRepeatValidationFeatureKey = alpha.MustFeatureKey("provision.skipRepeatValidation")
 
 // adaptivePoller implements exponential backoff for deployment polling.
 // It starts at a fast interval and backs off when the deployment state is unchanged,
@@ -262,7 +288,7 @@ func (p *BicepProvider) ensureResourceGroup(ctx context.Context, env *environmen
 		return fmt.Errorf("invalid '%s': %w", environment.ResourceGroupEnvVarName, err)
 	}
 
-	exists, err := p.resourceService.CheckExistenceByID(ctx, *resId, apiVersionResourceGroupExistence)
+	exists, err := p.checkResourceGroupExists(ctx, *resId, apiVersionResourceGroupExistence)
 	if err != nil {
 		return fmt.Errorf("checking if resource group exists: %w", err)
 	}
@@ -703,7 +729,7 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 				if res != nil && res.ID != nil {
 					resId, err := arm.ParseResourceID(*res.ID)
 					if err == nil && resId.ResourceType.Type == arm.ResourceGroupResourceType.Type {
-						exists, err := p.resourceService.CheckExistenceByID(ctx, *resId, apiVersionResourceGroupExistence)
+						exists, err := p.checkResourceGroupExists(ctx, *resId, apiVersionResourceGroupExistence)
 						if err == nil && !exists {
 							stateErr = fmt.Errorf(
 								"resource group %s no longer exists, invalidating deployment state", resId.ResourceGroupName)
@@ -721,7 +747,9 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 			)
 
 			// Update local cache so the next run can skip the Azure API call entirely.
-			if p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) {
+			if p.alphaFeatureManager != nil &&
+				(p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) ||
+					p.alphaFeatureManager.IsEnabled(skipRepeatValidationFeatureKey)) {
 				p.updateLocalDeploymentCache(planned, currentParamsHash, result.Outputs)
 			}
 
@@ -752,6 +780,22 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 	if err := p.serviceLocator.Resolve(&userConfigManager); err == nil {
 		if userConfig, err := userConfigManager.Load(); err == nil {
 			if val, exists := userConfig.GetString("provision.preflight"); exists && val == "off" {
+				skipPreflight = true
+			}
+		}
+	}
+
+	// Skip ARM validation when the compiled template is identical to the last successfully deployed
+	// version (alpha feature: provision.skipRepeatValidation). This avoids a costly Azure API
+	// round-trip for repeat deployments where only parameters or tags changed.
+	if !skipPreflight &&
+		p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(skipRepeatValidationFeatureKey) {
+		templateHash := computeTemplateContentHash(planned.RawArmTemplate)
+		cachePath := p.deploymentCachePath()
+		if cache, cacheErr := loadDeploymentCache(cachePath); cacheErr == nil {
+			if entry, ok := cache.Layers[p.layerCacheKey()]; ok && entry.TemplateHash == templateHash {
+				log.Printf("Skipping ARM validation — template unchanged since last successful deployment (layer %q)",
+					p.layerCacheKey())
 				skipPreflight = true
 			}
 		}
@@ -860,7 +904,11 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 
 	// Update local cache after a successful deployment so subsequent runs can skip
 	// both the Azure API state check and the deployment itself.
-	if p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) &&
+	// Also update when skipRepeatValidation is enabled so it can compare template hashes
+	// on the next run to skip ARM validation.
+	if p.alphaFeatureManager != nil &&
+		(p.alphaFeatureManager.IsEnabled(localCacheFeatureKey) ||
+			p.alphaFeatureManager.IsEnabled(skipRepeatValidationFeatureKey)) &&
 		parametersHashErr == nil {
 		p.updateLocalDeploymentCache(planned, currentParamsHash, result.Outputs)
 	}
@@ -2825,6 +2873,7 @@ func NewBicepProvider(
 		aiModelService:      aiModelService,
 		serviceLocator:      serviceLocator,
 		alphaFeatureManager: alphaFeatureManager,
+		rgExistsCache:       make(map[string]bool),
 	}
 }
 

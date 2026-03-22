@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	deployStatusInterval = 10 * time.Second
+	deployStatusInterval = 500 * time.Millisecond
 )
 
 // ZipDeployClient wraps usage of app service zip deploy used for application deployments

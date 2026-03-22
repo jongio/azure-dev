@@ -12,7 +12,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/azure/azure-dev/cli/azd/internal"
 	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
@@ -24,6 +26,7 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/osutil"
 	"github.com/azure/azure-dev/cli/azd/pkg/tools"
 	"github.com/azure/azure-dev/cli/azd/pkg/tools/swa"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -139,6 +142,14 @@ type ServiceManager interface {
 	// The service target is responsible for packaging & deploying the service app code
 	// to the destination Azure resource
 	GetServiceTarget(ctx context.Context, serviceConfig *ServiceConfig) (ServiceTarget, error)
+
+	// PackageAll packages all specified services, optionally in parallel when the
+	// deploy.parallelBuild alpha feature is enabled. Results are keyed by service name.
+	PackageAll(
+		ctx context.Context,
+		serviceConfigs []*ServiceConfig,
+		options *PackageOptions,
+	) (map[string]*ServicePackageResult, error)
 }
 
 // ServiceOperationCache is an alias to map used for internal caching of service operation results
@@ -153,6 +164,7 @@ type serviceManager struct {
 	operationCache      ServiceOperationCache
 	alphaFeatureManager *alpha.FeatureManager
 	initialized         map[*ServiceConfig]map[any]bool
+	mu                  sync.Mutex
 }
 
 // NewServiceManager creates a new instance of the ServiceManager component
@@ -210,7 +222,7 @@ func (sm *serviceManager) Initialize(ctx context.Context, serviceConfig *Service
 			return err
 		}
 
-		sm.initialized[serviceConfig][frameworkService] = true
+		sm.setComponentInitialized(serviceConfig, frameworkService)
 	} else {
 		log.Printf("frameworkService already initialized for service: %s", serviceConfig.Name)
 	}
@@ -220,7 +232,7 @@ func (sm *serviceManager) Initialize(ctx context.Context, serviceConfig *Service
 			return err
 		}
 
-		sm.initialized[serviceConfig][serviceTarget] = true
+		sm.setComponentInitialized(serviceConfig, serviceTarget)
 	}
 
 	return nil
@@ -756,6 +768,9 @@ func OverriddenEndpoints(ctx context.Context, serviceConfig *ServiceConfig, env 
 
 // Attempts to retrieve the result of a previous operation from the cache
 func (sm *serviceManager) getOperationResult(serviceConfig *ServiceConfig, eventType ext.Event) (any, bool) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	key := fmt.Sprintf("%s:%s:%s", sm.env.Name(), serviceConfig.Name, eventType)
 	value, ok := sm.operationCache[key]
 
@@ -764,12 +779,18 @@ func (sm *serviceManager) getOperationResult(serviceConfig *ServiceConfig, event
 
 // Sets the result of an operation in the cache
 func (sm *serviceManager) setOperationResult(serviceConfig *ServiceConfig, eventType ext.Event, result any) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	key := fmt.Sprintf("%s:%s:%s", sm.env.Name(), serviceConfig.Name, eventType)
 	sm.operationCache[key] = result
 }
 
 // isComponentInitialized Checks if a component has been initialized for a service configuration
 func (sm *serviceManager) isComponentInitialized(serviceConfig *ServiceConfig, component any) bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	if componentMap, has := sm.initialized[serviceConfig]; has && len(componentMap) > 0 {
 		initialized := false
 		if ok, has := componentMap[component]; has && ok {
@@ -782,6 +803,72 @@ func (sm *serviceManager) isComponentInitialized(serviceConfig *ServiceConfig, c
 	sm.initialized[serviceConfig] = map[any]bool{}
 
 	return false
+}
+
+// setComponentInitialized marks a component as initialized for a service configuration (thread-safe).
+func (sm *serviceManager) setComponentInitialized(serviceConfig *ServiceConfig, component any) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if _, has := sm.initialized[serviceConfig]; !has {
+		sm.initialized[serviceConfig] = map[any]bool{}
+	}
+	sm.initialized[serviceConfig][component] = true
+}
+
+// PackageAll packages all specified services. When the deploy.parallelBuild alpha feature
+// is enabled, services are packaged concurrently using an errgroup with concurrency capped
+// at runtime.NumCPU(). Otherwise, services are packaged sequentially. Results are cached
+// in the operation cache so that subsequent per-service Package calls return immediately.
+func (sm *serviceManager) PackageAll(
+	ctx context.Context,
+	serviceConfigs []*ServiceConfig,
+	options *PackageOptions,
+) (map[string]*ServicePackageResult, error) {
+	results := make(map[string]*ServicePackageResult, len(serviceConfigs))
+
+	if sm.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.parallelBuild")) {
+		var mu sync.Mutex
+		g, gCtx := errgroup.WithContext(ctx)
+		g.SetLimit(runtime.NumCPU())
+
+		for _, svc := range serviceConfigs {
+			g.Go(func() error {
+				svcCtx := NewServiceContext()
+				progress := &async.Progress[ServiceProgress]{}
+				res, err := sm.Package(gCtx, svc, svcCtx, progress, options)
+				if err != nil {
+					return fmt.Errorf("packaging service '%s': %w", svc.Name, err)
+				}
+
+				mu.Lock()
+				results[svc.Name] = res
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return nil, err
+		}
+
+		return results, nil
+	}
+
+	// Sequential fallback
+	for _, svc := range serviceConfigs {
+		svcCtx := NewServiceContext()
+		progress := &async.Progress[ServiceProgress]{}
+		res, err := sm.Package(ctx, svc, svcCtx, progress, options)
+		if err != nil {
+			return nil, fmt.Errorf("packaging service '%s': %w", svc.Name, err)
+		}
+
+		results[svc.Name] = res
+	}
+
+	return results, nil
 }
 
 // appendOperationArtifacts adds result artifacts to the appropriate phase in the service context

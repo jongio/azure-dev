@@ -11,9 +11,11 @@ import (
 	"maps"
 	"net/url"
 	"slices"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/azure/azure-dev/cli/azd/pkg/account"
@@ -230,7 +232,9 @@ func (ds *StandardDeployments) DeployToSubscription(
 	}
 
 	// wait for deployment creation
-	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, nil)
+	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationDeploy))
 	}
@@ -266,7 +270,9 @@ func (ds *StandardDeployments) DeployToResourceGroup(
 	}
 
 	// wait for deployment creation
-	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, nil)
+	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationDeploy))
 	}
@@ -580,7 +586,9 @@ func (ds *StandardDeployments) WhatIfDeployToSubscription(
 	}
 
 	// wait for deployment creation
-	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, nil)
+	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationPreview))
 	}
@@ -613,7 +621,9 @@ func (ds *StandardDeployments) WhatIfDeployToResourceGroup(
 	}
 
 	// wait for deployment creation
-	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, nil)
+	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationPreview))
 	}
@@ -737,7 +747,9 @@ func (ds *StandardDeployments) ValidatePreflightToSubscription(
 			createDeploymentError(err, DeploymentOperationValidate),
 		)
 	}
-	_, err = validateResult.PollUntilDone(ctx, nil)
+	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return fmt.Errorf(
 			"validating deployment to subscription: %w",
@@ -778,7 +790,9 @@ func (ds *StandardDeployments) ValidatePreflightToResourceGroup(
 			createDeploymentError(err, DeploymentOperationValidate),
 		)
 	}
-	_, err = validateResult.PollUntilDone(ctx, nil)
+	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return fmt.Errorf(
 			"validating deployment to resource group: %w",

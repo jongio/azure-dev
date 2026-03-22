@@ -289,6 +289,48 @@ func (cli *AzureClient) GetAppServiceSlots(
 	return slots, nil
 }
 
+// UpdateAppServiceAppSetting reads the existing application settings, adds or overwrites
+// the specified key-value pair, and writes all settings back. This preserves other settings
+// that are not being modified.
+func (cli *AzureClient) UpdateAppServiceAppSetting(
+	ctx context.Context,
+	subscriptionId string,
+	resourceGroup string,
+	appName string,
+	key string,
+	value string,
+) error {
+	client, err := cli.createWebAppsClient(ctx, subscriptionId)
+	if err != nil {
+		return err
+	}
+
+	// Read existing settings so that we preserve them.
+	existing, err := client.ListApplicationSettings(ctx, resourceGroup, appName, nil)
+	if err != nil {
+		return fmt.Errorf("listing existing app settings: %w", err)
+	}
+
+	if existing.Properties == nil {
+		existing.Properties = map[string]*string{}
+	}
+
+	existing.Properties[key] = &value
+
+	// Write all settings back (the API replaces the full set).
+	if _, err := client.UpdateApplicationSettings(
+		ctx,
+		resourceGroup,
+		appName,
+		armappservice.StringDictionary{Properties: existing.Properties},
+		nil,
+	); err != nil {
+		return fmt.Errorf("updating app settings: %w", err)
+	}
+
+	return nil
+}
+
 // DeployAppServiceSlotZip deploys a zip file to a specific deployment slot.
 func (cli *AzureClient) DeployAppServiceSlotZip(
 	ctx context.Context,

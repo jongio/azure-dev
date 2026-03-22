@@ -384,6 +384,18 @@ func (m *mockDeployServiceManager) GetServiceTarget(
 	return nil, nil
 }
 
+func (m *mockDeployServiceManager) PackageAll(
+	ctx context.Context,
+	serviceConfigs []*project.ServiceConfig,
+	options *project.PackageOptions,
+) (map[string]*project.ServicePackageResult, error) {
+	results := make(map[string]*project.ServicePackageResult, len(serviceConfigs))
+	for _, svc := range serviceConfigs {
+		results[svc.Name] = &project.ServicePackageResult{}
+	}
+	return results, nil
+}
+
 func newDeployActionForTimeoutTest(
 	t *testing.T,
 	flagTimeout *int,

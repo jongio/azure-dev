@@ -34,6 +34,20 @@ func ReadRawResponse[T any](response *http.Response) (*T, error) {
 	return instance, nil
 }
 
+// TunedTransport returns an http.Transport cloned from http.DefaultTransport with
+// connection pooling parameters optimized for Azure CLI workloads. The key tuning
+// is MaxIdleConnsPerHost (raised from the Go default of 2 to 20) which avoids
+// unnecessary TLS handshakes when making many requests to the same ARM endpoint.
+func TunedTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 100
+	transport.MaxConnsPerHost = 20
+	transport.MaxIdleConnsPerHost = 20
+	transport.IdleConnTimeout = 30 * time.Second
+	transport.DisableKeepAlives = false
+	return transport
+}
+
 // TlsEnabledTransport returns a http.Transport that has TLS configured to use the provided
 // Base64 DER-encoded certificate. The returned http.Transport inherits defaults from http.DefaultTransport.
 func TlsEnabledTransport(derBytes string) (*http.Transport, error) {

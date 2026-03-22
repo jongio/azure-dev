@@ -178,7 +178,7 @@ func Test_CLI_Aspire_DetectGen(t *testing.T) {
 		_, err = cli.RunCommand(ctx, "infra", "synth")
 		require.NoError(t, err)
 
-		bicepCli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil))
+		bicepCli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil), nil)
 
 		// Validate bicep builds without errors
 		// cdk lint errors are expected
@@ -229,7 +229,7 @@ func Test_CLI_Aspire_DetectGen(t *testing.T) {
 		_, err = cli.RunCommand(ctx, "infra", "generate")
 		require.NoError(t, err)
 
-		bicepCli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil))
+		bicepCli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil), nil)
 
 		// Validate bicep builds without errors
 		// cdk lint errors are expected

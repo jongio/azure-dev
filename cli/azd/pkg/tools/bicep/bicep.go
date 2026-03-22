@@ -5,6 +5,8 @@ package bicep
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,8 +16,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/config"
 	"github.com/azure/azure-dev/cli/azd/pkg/exec"
 	"github.com/azure/azure-dev/cli/azd/pkg/input"
@@ -27,6 +31,9 @@ import (
 // Version is the minimum version of bicep that we require (and the one we fetch when we fetch bicep on behalf of a
 // user).
 var Version semver.Version = semver.MustParse("0.41.2")
+
+// bicepCacheFeatureKey is the alpha feature flag for in-memory Bicep compilation caching.
+var bicepCacheFeatureKey = alpha.MustFeatureKey("provision.bicepCache")
 
 // Cli is a wrapper around the bicep CLI.
 // The CLI automatically ensures bicep is installed before executing commands.
@@ -42,13 +49,22 @@ type Cli struct {
 	console     input.Console
 	transporter policy.Transporter
 
+	alphaFeatureManager *alpha.FeatureManager
+	// buildCache stores compiled BuildResult values keyed by content hash to avoid redundant
+	// recompilation within the same azd process. Only active when provision.bicepCache is enabled.
+	buildCache sync.Map
+
 	installInit osutil.LazyRetryInit
 }
 
 // NewCli creates a new Bicep CLI wrapper.
 // The CLI automatically ensures bicep is installed when Build or BuildBicepParam is called.
-func NewCli(console input.Console, commandRunner exec.CommandRunner) *Cli {
-	return newCliWithTransporter(console, commandRunner, http.DefaultClient)
+func NewCli(
+	console input.Console,
+	commandRunner exec.CommandRunner,
+	alphaFeatureManager *alpha.FeatureManager,
+) *Cli {
+	return newCliWithTransporter(console, commandRunner, http.DefaultClient, alphaFeatureManager)
 }
 
 // newCliWithTransporter is like NewCli but allows providing a custom transport for testing.
@@ -56,11 +72,13 @@ func newCliWithTransporter(
 	console input.Console,
 	commandRunner exec.CommandRunner,
 	transporter policy.Transporter,
+	alphaFeatureManager *alpha.FeatureManager,
 ) *Cli {
 	return &Cli{
-		runner:      commandRunner,
-		console:     console,
-		transporter: transporter,
+		runner:              commandRunner,
+		console:             console,
+		transporter:         transporter,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 
@@ -274,7 +292,44 @@ type BuildResult struct {
 	LintErr string
 }
 
+// isCacheEnabled reports whether the in-memory Bicep compilation cache is active.
+func (cli *Cli) isCacheEnabled() bool {
+	return cli.alphaFeatureManager != nil && cli.alphaFeatureManager.IsEnabled(bicepCacheFeatureKey)
+}
+
+// buildCacheKey computes a SHA-256 digest over the Bicep file's content (and its matching
+// .bicepparam file, when present) to serve as a cache key. Returning an error signals
+// that the cache should be bypassed for this invocation.
+func (cli *Cli) buildCacheKey(file string) (string, error) {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+	h.Write(content)
+
+	// Also incorporate the companion .bicepparam file when it exists so that
+	// parameter-only changes correctly invalidate the cache.
+	paramFile := strings.TrimSuffix(file, filepath.Ext(file)) + ".bicepparam"
+	if paramContent, err := os.ReadFile(paramFile); err == nil {
+		h.Write(paramContent)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 func (cli *Cli) Build(ctx context.Context, file string) (BuildResult, error) {
+	// Check in-memory cache when the alpha feature is enabled.
+	if cli.isCacheEnabled() {
+		if key, err := cli.buildCacheKey(file); err == nil {
+			if cached, ok := cli.buildCache.Load(key); ok {
+				log.Printf("bicep build cache hit for %s", file)
+				return cached.(BuildResult), nil
+			}
+		}
+	}
+
 	if err := cli.ensureInstalledOnce(ctx); err != nil {
 		return BuildResult{}, fmt.Errorf("ensuring bicep is installed: %w", err)
 	}
@@ -289,10 +344,20 @@ func (cli *Cli) Build(ctx context.Context, file string) (BuildResult, error) {
 		)
 	}
 
-	return BuildResult{
+	result := BuildResult{
 		Compiled: buildRes.Stdout,
 		LintErr:  buildRes.Stderr,
-	}, nil
+	}
+
+	// Store in cache for subsequent calls within the same process.
+	if cli.isCacheEnabled() {
+		if key, err := cli.buildCacheKey(file); err == nil {
+			cli.buildCache.Store(key, result)
+			log.Printf("bicep build cache store for %s", file)
+		}
+	}
+
+	return result, nil
 }
 
 func (cli *Cli) BuildBicepParam(ctx context.Context, file string, env []string) (BuildResult, error) {

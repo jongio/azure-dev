@@ -46,7 +46,7 @@ func TestNewBicepCli(t *testing.T) {
 	))
 
 	cli := newCliWithTransporter(
-		mockContext.Console, mockContext.CommandRunner, mockContext.HttpClient,
+		mockContext.Console, mockContext.CommandRunner, mockContext.HttpClient, nil,
 	)
 	err := cli.ensureInstalledOnce(*mockContext.Context)
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestNewBicepCliWillUpgrade(t *testing.T) {
 	})
 
 	cli := newCliWithTransporter(
-		mockContext.Console, mockContext.CommandRunner, mockContext.HttpClient,
+		mockContext.Console, mockContext.CommandRunner, mockContext.HttpClient, nil,
 	)
 	err = cli.ensureInstalledOnce(*mockContext.Context)
 	require.NoError(t, err)

@@ -765,6 +765,12 @@ func parseImageOverride(options *PublishOptions) (*imageOverride, error) {
 
 // runRemoteBuild builds the image using a remote azure container registry and tags it.
 // It returns the full remote image name.
+//
+// Thread-safety: This method is safe for concurrent use by multiple goroutines (e.g. when
+// deploy.parallelBuild is enabled). All state is either local to the call (dockerOptions,
+// contextPath, buildRequest) or accessed through thread-safe service clients
+// (remoteBuildManager, containerRegistryService). The console's ShowPreviewer/StopPreviewer
+// pair is scoped to each call. No shared mutable state on ContainerHelper is written.
 func (ch *ContainerHelper) runRemoteBuild(
 	ctx context.Context,
 	serviceConfig *ServiceConfig,

@@ -14,9 +14,11 @@ import (
 	"github.com/azure/azure-dev/cli/azd/internal"
 	"github.com/azure/azure-dev/cli/azd/internal/tracing"
 	"github.com/azure/azure-dev/cli/azd/internal/tracing/fields"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment/azdcontext"
 	"github.com/azure/azure-dev/cli/azd/pkg/ext"
 	"github.com/azure/azure-dev/cli/azd/pkg/tools"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -74,9 +76,10 @@ type ProjectManager interface {
 type ServiceFilterPredicate func(svc *ServiceConfig) bool
 
 type projectManager struct {
-	azdContext     *azdcontext.AzdContext
-	serviceManager ServiceManager
-	importManager  *ImportManager
+	azdContext          *azdcontext.AzdContext
+	serviceManager      ServiceManager
+	importManager       *ImportManager
+	alphaFeatureManager *alpha.FeatureManager
 }
 
 // NewProjectManager creates a new instance of the ProjectManager
@@ -84,11 +87,13 @@ func NewProjectManager(
 	azdContext *azdcontext.AzdContext,
 	serviceManager ServiceManager,
 	importManager *ImportManager,
+	alphaFeatureManager *alpha.FeatureManager,
 ) ProjectManager {
 	return &projectManager{
-		azdContext:     azdContext,
-		serviceManager: serviceManager,
-		importManager:  importManager,
+		azdContext:          azdContext,
+		serviceManager:     serviceManager,
+		importManager:      importManager,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 
@@ -105,6 +110,26 @@ func (pm *projectManager) Initialize(ctx context.Context, projectConfig *Project
 	}
 
 	tracing.SetUsageAttributes(fields.ProjectServiceTargetsKey.StringSlice(serviceTargets))
+
+	if pm.alphaFeatureManager != nil &&
+		pm.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.parallelInit")) {
+		g, gCtx := errgroup.WithContext(ctx)
+
+		for _, svc := range servicesStable {
+			g.Go(func() error {
+				if err := pm.serviceManager.Initialize(gCtx, svc); err != nil {
+					return fmt.Errorf("initializing service '%s', %w", svc.Name, err)
+				}
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return err
+		}
+
+		return nil
+	}
 
 	for _, svc := range servicesStable {
 		if err := pm.serviceManager.Initialize(ctx, svc); err != nil {

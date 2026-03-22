@@ -256,7 +256,7 @@ func TestExecInfra(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			cli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil))
+			cli := bicep.NewCli(mockinput.NewMockConsole(), exec.NewCommandRunner(nil), nil)
 
 			res, err := cli.Build(ctx, filepath.Join(dir, "main.bicep"))
 			require.NoError(t, err)

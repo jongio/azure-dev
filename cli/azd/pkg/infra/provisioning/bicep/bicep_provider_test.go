@@ -408,7 +408,7 @@ func createBicepProvider(t *testing.T, mockContext *mocks.MockContext) *BicepPro
 	envManager.On("Save", mock.Anything, mock.Anything).Return(nil)
 	envManager.On("Reload", mock.Anything, mock.Anything).Return(nil)
 
-	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner)
+	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner, nil)
 	azCli := mockazapi.NewAzureClientFromMockContext(mockContext)
 	resourceService := azapi.NewResourceService(mockContext.SubscriptionCredentialProvider, mockContext.ArmClientOptions)
 	deploymentService := mockazapi.NewStandardDeploymentsFromMockContext(mockContext)
@@ -1096,7 +1096,7 @@ func TestUserDefinedTypes(t *testing.T) {
 	})
 
 	azCli := mockazapi.NewAzureClientFromMockContext(mockContext)
-	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner)
+	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner, nil)
 	env := environment.NewWithValues("test-env", map[string]string{})
 
 	mockContext.CommandRunner.When(func(args exec.RunArgs, command string) bool {
@@ -1738,7 +1738,7 @@ func createBicepProviderWithEnv(
 	envManager.On("Save", mock.Anything, mock.Anything).Return(nil)
 	envManager.On("Reload", mock.Anything, mock.Anything).Return(nil)
 
-	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner)
+	bicepCli := bicep.NewCli(mockContext.Console, mockContext.CommandRunner, nil)
 	azCli := mockazapi.NewAzureClientFromMockContext(mockContext)
 	resourceService := azapi.NewResourceService(mockContext.SubscriptionCredentialProvider, mockContext.ArmClientOptions)
 	deploymentService := mockazapi.NewStandardDeploymentsFromMockContext(mockContext)

@@ -57,6 +57,12 @@ type containerAppTarget struct {
 	alphaFeatureManager *alpha.FeatureManager
 
 	bicepCli func() (*bicep.Cli, error)
+
+	// expandedEnvMu protects expandedEnvCache from concurrent access.
+	expandedEnvMu sync.Mutex
+	// expandedEnvCache caches the result of serviceConfig.Environment.Expand()
+	// keyed by the service name, to avoid redundant env var resolution within the same azd process.
+	expandedEnvCache map[string]map[string]string
 }
 
 // NewContainerAppTarget creates the container app service target.
@@ -84,7 +90,27 @@ func NewContainerAppTarget(
 		console:             console,
 		commandRunner:       commandRunner,
 		alphaFeatureManager: alphaFeatureManager,
+		expandedEnvCache:    make(map[string]map[string]string),
 	}
+}
+
+// expandServiceEnv expands environment variables from the service config, caching results
+// to avoid redundant resolution within the same azd process.
+func (at *containerAppTarget) expandServiceEnv(serviceConfig *ServiceConfig) (map[string]string, error) {
+	at.expandedEnvMu.Lock()
+	defer at.expandedEnvMu.Unlock()
+
+	if cached, ok := at.expandedEnvCache[serviceConfig.Name]; ok {
+		return cached, nil
+	}
+
+	envVars, err := serviceConfig.Environment.Expand(at.env.Getenv)
+	if err != nil {
+		return nil, err
+	}
+
+	at.expandedEnvCache[serviceConfig.Name] = envVars
+	return envVars, nil
 }
 
 // Gets the required external tools
@@ -253,7 +279,7 @@ func (at *containerAppTarget) Deploy(
 		fetchBicepCli := at.bicepCli
 		if fetchBicepCli == nil {
 			fetchBicepCli = func() (*bicep.Cli, error) {
-				return bicep.NewCli(at.console, at.commandRunner), nil
+				return bicep.NewCli(at.console, at.commandRunner, at.alphaFeatureManager), nil
 			}
 		}
 
@@ -327,7 +353,7 @@ func (at *containerAppTarget) Deploy(
 			resourceTypeContainer = azapi.AzureResourceTypeContainerAppJob
 
 			// Expand environment variables from service config
-			envVars, err := serviceConfig.Environment.Expand(at.env.Getenv)
+			envVars, err := at.expandServiceEnv(serviceConfig)
 			if err != nil {
 				return nil, fmt.Errorf("expanding environment variables: %w", err)
 			}
@@ -347,7 +373,7 @@ func (at *containerAppTarget) Deploy(
 			}
 		} else {
 			// Expand environment variables from service config
-			envVars, err := serviceConfig.Environment.Expand(at.env.Getenv)
+			envVars, err := at.expandServiceEnv(serviceConfig)
 			if err != nil {
 				return nil, fmt.Errorf("expanding environment variables: %w", err)
 			}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -266,7 +267,9 @@ func (d *StackDeployments) DeployToSubscription(
 		return nil, err
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationDeploy))
 	}
@@ -340,7 +343,9 @@ func (d *StackDeployments) DeployToResourceGroup(
 		return nil, err
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationDeploy))
 	}
@@ -489,7 +494,9 @@ func (d *StackDeployments) DeleteSubscriptionDeployment(
 		return err
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		progress.SetProgress(DeleteDeploymentProgress{
 			Name: deploymentName,
@@ -629,7 +636,9 @@ func (d *StackDeployments) DeleteResourceGroupDeployment(
 		return err
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		progress.SetProgress(DeleteDeploymentProgress{
 			Name: deploymentName,
@@ -795,7 +804,9 @@ func (d *StackDeployments) ValidatePreflightToResourceGroup(
 			createDeploymentError(err, DeploymentOperationValidate),
 		)
 	}
-	_, err = validateResult.PollUntilDone(ctx, nil)
+	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return fmt.Errorf(
 			"validating deployment to resource group: %w",
@@ -877,7 +888,9 @@ func (d *StackDeployments) ValidatePreflightToSubscription(
 			createDeploymentError(err, DeploymentOperationValidate),
 		)
 	}
-	_, err = validateResult.PollUntilDone(ctx, nil)
+	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 2 * time.Second,
+	})
 	if err != nil {
 		return fmt.Errorf(
 			"validating deployment to subscription: %w",

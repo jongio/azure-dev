@@ -6,10 +6,12 @@ package project
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
 	"github.com/azure/azure-dev/cli/azd/internal/mapper"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/async"
 	"github.com/azure/azure-dev/cli/azd/pkg/azapi"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
@@ -17,10 +19,14 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/tools"
 )
 
+// runFromPackageFeatureKey is the alpha feature flag for WEBSITE_RUN_FROM_PACKAGE optimisation.
+var runFromPackageFeatureKey = alpha.MustFeatureKey("deploy.runFromPackage")
+
 type appServiceTarget struct {
-	env     *environment.Environment
-	cli     *azapi.AzureClient
-	console input.Console
+	env                 *environment.Environment
+	cli                 *azapi.AzureClient
+	console             input.Console
+	alphaFeatureManager *alpha.FeatureManager
 }
 
 // NewAppServiceTarget creates a new instance of the AppServiceTarget
@@ -28,11 +34,13 @@ func NewAppServiceTarget(
 	env *environment.Environment,
 	azCli *azapi.AzureClient,
 	console input.Console,
+	alphaFeatureManager *alpha.FeatureManager,
 ) ServiceTarget {
 	return &appServiceTarget{
-		env:     env,
-		cli:     azCli,
-		console: console,
+		env:                 env,
+		cli:                 azCli,
+		console:             console,
+		alphaFeatureManager: alphaFeatureManager,
 	}
 }
 
@@ -126,6 +134,23 @@ func (st *appServiceTarget) Deploy(
 	deployTargets, err := st.determineDeploymentTargets(ctx, serviceConfig, targetResource, progress)
 	if err != nil {
 		return nil, fmt.Errorf("determining deployment targets: %w", err)
+	}
+
+	// When the deploy.runFromPackage alpha feature is enabled, set WEBSITE_RUN_FROM_PACKAGE=1 so that
+	// App Service mounts the zip directly instead of extracting it, resulting in faster startup.
+	if st.alphaFeatureManager != nil && st.alphaFeatureManager.IsEnabled(runFromPackageFeatureKey) {
+		log.Printf("deploy.runFromPackage enabled: setting WEBSITE_RUN_FROM_PACKAGE=1 for %s", serviceConfig.Name)
+		if setErr := st.cli.UpdateAppServiceAppSetting(
+			ctx,
+			targetResource.SubscriptionId(),
+			targetResource.ResourceGroupName(),
+			targetResource.ResourceName(),
+			"WEBSITE_RUN_FROM_PACKAGE",
+			"1",
+		); setErr != nil {
+			// Non-fatal: continue with normal deploy even if the optimisation cannot be applied.
+			log.Printf("warning: failed to set WEBSITE_RUN_FROM_PACKAGE: %v", setErr)
+		}
 	}
 
 	// Deploy to each target
