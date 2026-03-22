@@ -12,6 +12,7 @@ import (
 	"log"
 	"maps"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
@@ -87,8 +89,9 @@ type BicepProvider struct {
 	compileBicepMemoryCache *compileBicepResult
 	// rgExistsCache caches resource group existence checks to skip redundant ARM API calls
 	// within the same azd run. ARM's CreateOrUpdate is idempotent, so once we know an RG
-	// exists, we don't need to re-check.
-	rgExistsCache map[string]bool
+	// exists, we don't need to re-check. Uses sync.Map for safe concurrent access from
+	// parallel provisioning goroutines.
+	rgExistsCache sync.Map
 	// Options that are available after Initialize()
 	options               provisioning.Options
 	projectPath           string
@@ -107,8 +110,8 @@ func (p *BicepProvider) checkResourceGroupExists(
 	apiVersion string,
 ) (bool, error) {
 	cacheKey := resId.String()
-	if exists, cached := p.rgExistsCache[cacheKey]; cached {
-		return exists, nil
+	if _, ok := p.rgExistsCache.Load(cacheKey); ok {
+		return true, nil
 	}
 
 	exists, err := p.resourceService.CheckExistenceByID(ctx, resId, apiVersion)
@@ -116,7 +119,9 @@ func (p *BicepProvider) checkResourceGroupExists(
 		return false, err
 	}
 
-	p.rgExistsCache[cacheKey] = exists
+	if exists {
+		p.rgExistsCache.Store(cacheKey, true)
+	}
 	return exists, nil
 }
 
@@ -126,12 +131,14 @@ var skipRepeatValidationFeatureKey = alpha.MustFeatureKey("provision.skipRepeatV
 // adaptivePoller implements exponential backoff for deployment polling.
 // It starts at a fast interval and backs off when the deployment state is unchanged,
 // resetting to fast polling when new resources complete or fail.
+// It also detects ARM throttling (HTTP 429) and increases polling intervals accordingly.
 type adaptivePoller struct {
-	minInterval       time.Duration
-	maxInterval       time.Duration
-	currentInterval   time.Duration
-	backoffFactor     float64
-	lastResourceCount int
+	minInterval          time.Duration
+	maxInterval          time.Duration
+	currentInterval      time.Duration
+	backoffFactor        float64
+	lastResourceCount    int
+	consecutiveThrottles int
 }
 
 func newAdaptivePoller() *adaptivePoller {
@@ -161,6 +168,33 @@ func (ap *adaptivePoller) nextInterval(resourceCount int) time.Duration {
 		ap.currentInterval = next
 	}
 	return ap.currentInterval
+}
+
+// throttleThreshold is the number of consecutive throttle responses after which a visible
+// warning is emitted to the user.
+const throttleThreshold = 5
+
+// recordThrottle records a throttle event and returns true when a visible warning should be
+// emitted (after throttleThreshold consecutive throttles).
+func (ap *adaptivePoller) recordThrottle() bool {
+	ap.consecutiveThrottles++
+	// Force the interval to maximum when throttled.
+	ap.currentInterval = ap.maxInterval
+	return ap.consecutiveThrottles == throttleThreshold
+}
+
+// clearThrottle resets the consecutive throttle counter after a successful response.
+func (ap *adaptivePoller) clearThrottle() {
+	ap.consecutiveThrottles = 0
+}
+
+// isThrottleError checks if an error is an ARM throttling response (HTTP 429).
+func isThrottleError(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == http.StatusTooManyRequests
+	}
+	return false
 }
 
 // Name gets the name of the infra provider
@@ -785,16 +819,19 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 		}
 	}
 
-	// Skip ARM validation when the compiled template is identical to the last successfully deployed
-	// version (alpha feature: provision.skipRepeatValidation). This avoids a costly Azure API
-	// round-trip for repeat deployments where only parameters or tags changed.
+	// Skip ARM validation when the compiled template AND parameters are identical to the last
+	// successfully deployed version (alpha feature: provision.skipRepeatValidation). This avoids
+	// a costly Azure API round-trip for repeat deployments.
 	if !skipPreflight &&
 		p.alphaFeatureManager != nil && p.alphaFeatureManager.IsEnabled(skipRepeatValidationFeatureKey) {
 		templateHash := computeTemplateContentHash(planned.RawArmTemplate)
 		cachePath := p.deploymentCachePath()
 		if cache, cacheErr := loadDeploymentCache(cachePath); cacheErr == nil {
-			if entry, ok := cache.Layers[p.layerCacheKey()]; ok && entry.TemplateHash == templateHash {
-				log.Printf("Skipping ARM validation — template unchanged since last successful deployment (layer %q)",
+			if entry, ok := cache.Layers[p.layerCacheKey()]; ok &&
+				entry.TemplateHash == templateHash &&
+				(parametersHashErr == nil && entry.ParameterHash == currentParamsHash) {
+				log.Printf(
+					"Skipping ARM validation — template and parameters unchanged since last successful deployment (layer %q)",
 					p.layerCacheKey())
 				skipPreflight = true
 			}
@@ -869,12 +906,29 @@ func (p *BicepProvider) Deploy(ctx context.Context) (*provisioning.DeployResult,
 				timer.Stop()
 				return
 			case <-timer.C:
-				if err := progressDisplay.ReportProgress(progressCtx, &queryStartTime); err != nil {
+				err := progressDisplay.ReportProgress(progressCtx, &queryStartTime)
+				if err != nil {
 					// We don't want to fail the whole deployment if a progress reporting error occurs
 					log.Printf("error while reporting progress: %v", err)
+
+					// Detect ARM throttling (HTTP 429) and adjust polling accordingly.
+					if useAdaptivePolling && isThrottleError(err) {
+						if poller.recordThrottle() {
+							log.Printf(
+								"WARNING: ARM API is throttling requests — "+
+									"deployment progress polling slowed to %s intervals",
+								poller.maxInterval)
+						}
+						delay = poller.maxInterval
+						timer.Reset(delay)
+						continue
+					}
 				}
 
 				if useAdaptivePolling {
+					if err == nil {
+						poller.clearThrottle()
+					}
 					delay = poller.nextInterval(progressDisplay.DisplayedResourceCount())
 				}
 				timer.Reset(delay)
@@ -2873,7 +2927,6 @@ func NewBicepProvider(
 		aiModelService:      aiModelService,
 		serviceLocator:      serviceLocator,
 		alphaFeatureManager: alphaFeatureManager,
-		rgExistsCache:       make(map[string]bool),
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/pprof"
 	"slices"
 	"strings"
 
@@ -385,6 +386,12 @@ func tryAutoInstallExtension(
 
 // ExecuteWithAutoInstall executes the command and handles auto-installation of extensions for unknown commands.
 func ExecuteWithAutoInstall(ctx context.Context, rootContainer *ioc.NestedContainer) error {
+	// Safety net: ensure CPU profiling is stopped even if a panic occurs during command
+	// execution.  pprof.StopCPUProfile is a no-op when profiling is not active, so this
+	// is harmless in the normal case where PersistentPostRunE already stopped profiling.
+	// The OS closes the file handle on process exit after the panic propagates.
+	defer pprof.StopCPUProfile()
+
 	// Parse global flags BEFORE creating the command tree.
 	// This allows us to access flag values (like --no-prompt, --debug) early for auto-install logic.
 	// This also enables the global options to be set in the container for support during extension framework callbacks.
@@ -625,6 +632,12 @@ func CreateGlobalFlagSet() *pflag.FlagSet {
 
 	globalFlags.String("trace-log-url", "", "Send traces to an Open Telemetry compatible endpoint.")
 	_ = globalFlags.MarkHidden("trace-log-url")
+
+	globalFlags.String("cpu-profile", "", "Write CPU profile to file.")
+	_ = globalFlags.MarkHidden("cpu-profile")
+
+	globalFlags.String("mem-profile", "", "Write memory profile to file.")
+	_ = globalFlags.MarkHidden("mem-profile")
 
 	return globalFlags
 }

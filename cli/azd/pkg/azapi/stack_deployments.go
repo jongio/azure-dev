@@ -268,7 +268,7 @@ func (d *StackDeployments) DeployToSubscription(
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationDeploy))
@@ -344,7 +344,7 @@ func (d *StackDeployments) DeployToResourceGroup(
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationDeploy))
@@ -495,7 +495,7 @@ func (d *StackDeployments) DeleteSubscriptionDeployment(
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		progress.SetProgress(DeleteDeploymentProgress{
@@ -637,7 +637,7 @@ func (d *StackDeployments) DeleteResourceGroupDeployment(
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		progress.SetProgress(DeleteDeploymentProgress{
@@ -805,7 +805,7 @@ func (d *StackDeployments) ValidatePreflightToResourceGroup(
 		)
 	}
 	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return fmt.Errorf(
@@ -889,7 +889,7 @@ func (d *StackDeployments) ValidatePreflightToSubscription(
 		)
 	}
 	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return fmt.Errorf(

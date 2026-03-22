@@ -32,6 +32,15 @@ const (
 	cArmDeploymentNameLengthMax = 64
 	cPortalUrlFragment          = "#view/HubsExtension/DeploymentDetailsBlade/~/overview/id"
 	cOutputsUrlFragment         = "#view/HubsExtension/DeploymentDetailsBlade/~/outputs/id"
+
+	// deployPollFrequency is the polling interval for ARM deploy/delete operations.
+	// Deployments complete in variable time, so more aggressive polling reduces latency.
+	deployPollFrequency = 2 * time.Second
+
+	// slowPollFrequency is the polling interval for ARM WhatIf and Validate operations.
+	// These are consistently slow (30-90s), so aggressive polling provides no benefit and
+	// risks hitting the ARM read rate limit (1200 reads/5min) during large parallel deployments.
+	slowPollFrequency = 5 * time.Second
 )
 
 type StandardDeployments struct {
@@ -233,7 +242,7 @@ func (ds *StandardDeployments) DeployToSubscription(
 
 	// wait for deployment creation
 	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationDeploy))
@@ -271,7 +280,7 @@ func (ds *StandardDeployments) DeployToResourceGroup(
 
 	// wait for deployment creation
 	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: deployPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationDeploy))
@@ -587,7 +596,7 @@ func (ds *StandardDeployments) WhatIfDeployToSubscription(
 
 	// wait for deployment creation
 	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to subscription: %w", createDeploymentError(err, DeploymentOperationPreview))
@@ -622,7 +631,7 @@ func (ds *StandardDeployments) WhatIfDeployToResourceGroup(
 
 	// wait for deployment creation
 	deployResult, err := createFromTemplateOperation.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deploying to resource group: %w", createDeploymentError(err, DeploymentOperationPreview))
@@ -748,7 +757,7 @@ func (ds *StandardDeployments) ValidatePreflightToSubscription(
 		)
 	}
 	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return fmt.Errorf(
@@ -791,7 +800,7 @@ func (ds *StandardDeployments) ValidatePreflightToResourceGroup(
 		)
 	}
 	_, err = validateResult.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 2 * time.Second,
+		Frequency: slowPollFrequency,
 	})
 	if err != nil {
 		return fmt.Errorf(

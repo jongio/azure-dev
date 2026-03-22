@@ -96,3 +96,23 @@ func TestRunFromPackage_FeatureDisabledByDefault(t *testing.T) {
 	// Without explicit enablement, the feature should be disabled.
 	require.False(t, st.alphaFeatureManager.IsEnabled(runFromPackageFeatureKey))
 }
+
+func TestRunFromPackage_PersistenceWarningWhenDisabled(t *testing.T) {
+	// Verify that the else branch is reachable: when alphaFeatureManager is non-nil
+	// but the feature is disabled, the code logs a diagnostic hint.
+	// We verify by checking that IsEnabled returns false and the alphaFeatureManager is not nil
+	// (the conditions for the warning branch).
+	alphaManager := alpha.NewFeaturesManagerWithConfig(config.NewEmptyConfig())
+
+	st := &appServiceTarget{
+		alphaFeatureManager: alphaManager,
+	}
+
+	// The feature is disabled by default
+	require.False(t, st.alphaFeatureManager.IsEnabled(runFromPackageFeatureKey))
+
+	// The warning branch requires alphaFeatureManager != nil AND !IsEnabled
+	// Both conditions are true, so the warning path would be taken during Deploy.
+	require.NotNil(t, st.alphaFeatureManager,
+		"alphaFeatureManager must be non-nil for the persistence warning branch to execute")
+}

@@ -190,6 +190,101 @@ func TestBuildCache_DisabledWithoutAlphaFlag(t *testing.T) {
 	require.Equal(t, 2, callCount, "without alpha flag, every Build call should invoke bicep")
 }
 
+func TestBuildCacheKey_WithModuleImports(t *testing.T) {
+	// Not parallel — newCacheTestCli mutates global defaultEnablement.
+
+	cli, _ := newCacheTestCli(t)
+
+	t.Run("cache key changes when module file changes", func(t *testing.T) {
+		dir := t.TempDir()
+		modDir := filepath.Join(dir, "modules")
+		require.NoError(t, os.MkdirAll(modDir, 0700))
+
+		moduleFile := filepath.Join(modDir, "network.bicep")
+		require.NoError(t, os.WriteFile(moduleFile, []byte("param vnetName string"), 0600))
+
+		mainBicep := filepath.Join(dir, "main.bicep")
+		require.NoError(t, os.WriteFile(mainBicep, []byte("module net './modules/network.bicep' = {\n  name: 'net'\n}"), 0600))
+
+		key1, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+		require.NotEmpty(t, key1)
+
+		// Change module content — cache key must change.
+		require.NoError(t, os.WriteFile(moduleFile, []byte("param vnetName string\nparam subnetCidr string"), 0600))
+
+		key2, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+		require.NotEqual(t, key1, key2, "cache key must change when module content changes")
+	})
+
+	t.Run("cache miss when module file missing", func(t *testing.T) {
+		dir := t.TempDir()
+		mainBicep := filepath.Join(dir, "main.bicep")
+		require.NoError(t, os.WriteFile(mainBicep, []byte("module db './db.bicep' = {\n  name: 'db'\n}"), 0600))
+
+		key, err := cli.buildCacheKey(mainBicep)
+		require.Error(t, err, "unresolvable module should cause an error (cache miss)")
+		require.Empty(t, key)
+	})
+
+	t.Run("registry modules ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		mainBicep := filepath.Join(dir, "main.bicep")
+		content := "module registry 'br:mcr.microsoft.com/bicep/avm:1.0' = {\n  name: 'reg'\n}\n" +
+			"module tspec 'ts:sub/rg/spec:v1' = {\n  name: 'ts'\n}"
+		require.NoError(t, os.WriteFile(mainBicep, []byte(content), 0600))
+
+		key, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err, "registry modules should be skipped, not cause errors")
+		require.NotEmpty(t, key)
+	})
+
+	t.Run("recursive module resolution", func(t *testing.T) {
+		dir := t.TempDir()
+		modDir := filepath.Join(dir, "modules")
+		require.NoError(t, os.MkdirAll(modDir, 0700))
+
+		// main.bicep → modules/app.bicep → modules/db.bicep
+		dbFile := filepath.Join(modDir, "db.bicep")
+		require.NoError(t, os.WriteFile(dbFile, []byte("param dbName string"), 0600))
+
+		appFile := filepath.Join(modDir, "app.bicep")
+		require.NoError(t, os.WriteFile(appFile, []byte("module database './db.bicep' = {\n  name: 'database'\n}"), 0600))
+
+		mainBicep := filepath.Join(dir, "main.bicep")
+		require.NoError(t, os.WriteFile(mainBicep, []byte("module app './modules/app.bicep' = {\n  name: 'app'\n}"), 0600))
+
+		key1, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+
+		// Change the deeply nested module — key must change.
+		require.NoError(t, os.WriteFile(dbFile, []byte("param dbName string\nparam sku string"), 0600))
+
+		key2, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+		require.NotEqual(t, key1, key2, "cache key must change when deeply nested module changes")
+	})
+
+	t.Run("unchanged modules produce same key", func(t *testing.T) {
+		dir := t.TempDir()
+		modDir := filepath.Join(dir, "modules")
+		require.NoError(t, os.MkdirAll(modDir, 0700))
+
+		require.NoError(t, os.WriteFile(filepath.Join(modDir, "net.bicep"), []byte("param x string"), 0600))
+
+		mainBicep := filepath.Join(dir, "main.bicep")
+		require.NoError(t, os.WriteFile(mainBicep, []byte("module net './modules/net.bicep' = {\n  name: 'net'\n}"), 0600))
+
+		key1, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+
+		key2, err := cli.buildCacheKey(mainBicep)
+		require.NoError(t, err)
+		require.Equal(t, key1, key2, "identical content must produce identical key")
+	})
+}
+
 func TestBuildCacheKey_IncludesBicepparamContent(t *testing.T) {
 	// Not parallel — newCacheTestCli mutates global defaultEnablement.
 

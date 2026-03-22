@@ -138,6 +138,12 @@ func (st *appServiceTarget) Deploy(
 
 	// When the deploy.runFromPackage alpha feature is enabled, set WEBSITE_RUN_FROM_PACKAGE=1 so that
 	// App Service mounts the zip directly instead of extracting it, resulting in faster startup.
+	//
+	// NOTE: This setting persists on Azure after the alpha flag is disabled. If the deployment
+	// method changes while WEBSITE_RUN_FROM_PACKAGE=1 is still set, the app may fail to start.
+	// Automatic removal is not performed because the setting may have been intentionally
+	// configured by the user outside of azd. Users must manually remove the setting via
+	// Azure Portal, CLI, or Bicep if they disable this alpha feature.
 	if st.alphaFeatureManager != nil && st.alphaFeatureManager.IsEnabled(runFromPackageFeatureKey) {
 		log.Printf("deploy.runFromPackage enabled: setting WEBSITE_RUN_FROM_PACKAGE=1 for %s", serviceConfig.Name)
 		if setErr := st.cli.UpdateAppServiceAppSetting(
@@ -151,6 +157,19 @@ func (st *appServiceTarget) Deploy(
 			// Non-fatal: continue with normal deploy even if the optimisation cannot be applied.
 			log.Printf("warning: failed to set WEBSITE_RUN_FROM_PACKAGE: %v", setErr)
 		}
+	} else if st.alphaFeatureManager != nil {
+		// The alpha feature is disabled (or was never enabled). If WEBSITE_RUN_FROM_PACKAGE=1
+		// was previously set by azd, it still persists on Azure and may cause issues if the
+		// deployment strategy changes. Log a diagnostic hint so users can investigate.
+		log.Printf(
+			"deploy.runFromPackage is disabled for %s. If WEBSITE_RUN_FROM_PACKAGE=1 was previously "+
+				"set via this alpha feature, it still persists on Azure. Remove it manually via "+
+				"'az webapp config appsettings delete --name %s --resource-group %s --setting-names WEBSITE_RUN_FROM_PACKAGE' "+
+				"if the app fails to start after changing deployment methods.",
+			serviceConfig.Name,
+			targetResource.ResourceName(),
+			targetResource.ResourceGroupName(),
+		)
 	}
 
 	// Deploy to each target

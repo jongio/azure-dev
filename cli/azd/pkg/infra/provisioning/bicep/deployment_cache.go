@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
+	"github.com/azure/azure-dev/cli/azd/pkg/osutil"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,6 +35,11 @@ type deploymentCacheEntry struct {
 }
 
 // deploymentCache is the top-level structure persisted to deployment-cache-{layer}.json.
+//
+// SecurityNote: Cache files may contain ARM deployment outputs including
+// connection strings and access keys. Files are stored with 0600 permissions
+// in the user's .azure/{env}/ directory. The cache is alpha-only; a future
+// release should encrypt sensitive output values at rest.
 type deploymentCache struct {
 	Layers map[string]*deploymentCacheEntry `json:"layers"`
 }
@@ -75,7 +81,12 @@ func loadDeploymentCache(cachePath string) (*deploymentCache, error) {
 	return &cache, nil
 }
 
-// saveDeploymentCache writes the cache to disk, creating intermediate directories if needed.
+// saveDeploymentCache writes the cache to disk atomically, creating intermediate directories
+// if needed. The write uses a temp-file-then-rename strategy so a crash mid-write cannot
+// corrupt the cache file.
+//
+// SecurityNote: ARM deployment outputs cached here may contain connection strings or access
+// keys. The file is written with 0600 permissions (owner read/write only).
 func saveDeploymentCache(cachePath string, cache *deploymentCache) error {
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0700); err != nil {
 		return err
@@ -84,8 +95,43 @@ func saveDeploymentCache(cachePath string, cache *deploymentCache) error {
 	if err != nil {
 		return err
 	}
-	//nolint:gosec // cache file contains no secrets – output values are the same as .env
-	return os.WriteFile(cachePath, data, 0600)
+	return atomicWriteFile(cachePath, data, 0600)
+}
+
+// atomicWriteFile writes data to path using a write-to-temp-then-rename pattern.
+// If the process is interrupted during the write, the original file remains intact.
+// On Windows, osutil.Rename retries on transient sharing-violation errors.
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+
+	// Set desired permissions before rename so the final file has the correct mode.
+	//nolint:gosec // perm is caller-controlled; cache callers always pass 0600
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+
+	// osutil.Rename handles platform-specific retry logic (e.g., Windows sharing violations).
+	if err := osutil.Rename(context.Background(), tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // computeTemplateContentHash computes a local SHA-256 hash of raw ARM template JSON.

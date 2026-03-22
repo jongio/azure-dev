@@ -150,7 +150,7 @@ func newRootCmd(
 
 			// Start CPU profiling if requested via --cpu-profile flag.
 			if opts.CpuProfile != "" {
-				f, err := os.Create(opts.CpuProfile)
+				f, err := os.OpenFile(opts.CpuProfile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 				if err != nil {
 					return fmt.Errorf("failed to create CPU profile file %s: %w", opts.CpuProfile, err)
 				}
@@ -175,7 +175,7 @@ func newRootCmd(
 
 			// Write heap memory profile if requested via --mem-profile flag.
 			if opts.MemProfile != "" {
-				f, err := os.Create(opts.MemProfile)
+				f, err := os.OpenFile(opts.MemProfile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 				if err != nil {
 					return fmt.Errorf("failed to create memory profile file %s: %w", opts.MemProfile, err)
 				}

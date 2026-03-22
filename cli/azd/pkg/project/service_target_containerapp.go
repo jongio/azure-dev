@@ -35,10 +35,16 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/tools/docker"
 )
 
-// templateHashMu protects concurrent reads/writes to the shared environment map
-// for SERVICE_{NAME}_TEMPLATE_HASH keys. Environment.DotenvSet and Getenv are not
-// goroutine-safe, so when deploy.parallel and deploy.smartApi are both enabled,
-// concurrent Deploy calls must serialize their access to these keys.
+// templateHashMu protects concurrent reads/writes to the shared environment map.
+// Environment.DotenvSet and Getenv operate on an unprotected map[string]string,
+// so when deploy.parallel is enabled, all concurrent access to the env map must
+// be serialized.
+//
+// Threading model for concurrent deploys:
+//   - shouldUseDirectRevisionAPI: reads (Getenv) and writes (DotenvSet) template
+//     hash keys — protected by templateHashMu.
+//   - expandServiceEnv: reads (Getenv via Expand callback) arbitrary env keys —
+//     also protected by templateHashMu to prevent races with DotenvSet.
 //
 // This is a package-level mutex (rather than instance-level) because all containerAppTarget
 // instances in a single azd run share the same *environment.Environment pointer.
@@ -104,7 +110,12 @@ func (at *containerAppTarget) expandServiceEnv(serviceConfig *ServiceConfig) (ma
 		return cached, nil
 	}
 
+	// Hold templateHashMu while reading from the shared env map via Expand.
+	// The underlying Environment map is not goroutine-safe, and concurrent
+	// shouldUseDirectRevisionAPI calls may write to the same map via DotenvSet.
+	templateHashMu.Lock()
 	envVars, err := serviceConfig.Environment.Expand(at.env.Getenv)
+	templateHashMu.Unlock()
 	if err != nil {
 		return nil, err
 	}

@@ -26,9 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # TODO(security): pin to SHA
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6 # TODO(security): pin to SHA
         with:
           go-version-file: cli/azd/go.mod
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Restore baseline
         id: cache-baseline
-        uses: actions/cache@v4
+        uses: actions/cache@v4 # TODO(security): pin to SHA
         with:
           path: cli/azd/perf/baselines
           key: bench-baseline-${{ runner.os }}-${{ github.base_ref || 'main' }}
@@ -85,7 +85,7 @@ jobs:
 
       - name: Comment PR with results
         if: github.event_name == 'pull_request' && steps.cache-baseline.outputs.cache-hit == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v7 # TODO(security): pin to SHA
         with:
           script: |
             const fs = require('fs');

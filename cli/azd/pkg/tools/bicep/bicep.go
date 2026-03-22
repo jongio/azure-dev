@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -297,17 +298,21 @@ func (cli *Cli) isCacheEnabled() bool {
 	return cli.alphaFeatureManager != nil && cli.alphaFeatureManager.IsEnabled(bicepCacheFeatureKey)
 }
 
-// buildCacheKey computes a SHA-256 digest over the Bicep file's content (and its matching
-// .bicepparam file, when present) to serve as a cache key. Returning an error signals
-// that the cache should be bypassed for this invocation.
+// modulePattern matches Bicep module declarations that reference local files.
+// It captures the relative path from: module <name> '<path>' ...
+var modulePattern = regexp.MustCompile(`(?m)module\s+\w+\s+'([^']+)'`)
+
+// buildCacheKey computes a SHA-256 digest over the Bicep file's content, its matching
+// .bicepparam file (when present), and all recursively referenced local module files.
+// Registry modules (br: and ts: prefixes) are ignored since they are externally versioned.
+// Returns ("", nil) to signal a cache miss when any referenced module file cannot be read.
 func (cli *Cli) buildCacheKey(file string) (string, error) {
-	content, err := os.ReadFile(file)
-	if err != nil {
+	h := sha256.New()
+	visited := make(map[string]bool)
+
+	if err := hashBicepFileTree(file, h, visited); err != nil {
 		return "", err
 	}
-
-	h := sha256.New()
-	h.Write(content)
 
 	// Also incorporate the companion .bicepparam file when it exists so that
 	// parameter-only changes correctly invalidate the cache.
@@ -317,6 +322,48 @@ func (cli *Cli) buildCacheKey(file string) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// hashBicepFileTree reads a Bicep file, writes its content to the hash, and recursively
+// processes any local module imports found in the file. visited tracks already-processed
+// absolute paths to avoid cycles. Returns a non-nil error if the file (or any referenced
+// module) cannot be read — the caller should treat this as a cache miss.
+func hashBicepFileTree(file string, h io.Writer, visited map[string]bool) error {
+	absPath, err := filepath.Abs(file)
+	if err != nil {
+		return err
+	}
+	if visited[absPath] {
+		return nil
+	}
+	visited[absPath] = true
+
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return err
+	}
+	if _, err := h.Write(content); err != nil {
+		return err
+	}
+
+	// Scan for module declarations referencing local files.
+	dir := filepath.Dir(absPath)
+	for _, match := range modulePattern.FindAllSubmatch(content, -1) {
+		modulePath := string(match[1])
+
+		// Skip registry modules (br: for Bicep Registry, ts: for Template Specs).
+		if strings.HasPrefix(modulePath, "br:") || strings.HasPrefix(modulePath, "ts:") {
+			continue
+		}
+
+		resolved := filepath.Join(dir, modulePath)
+		if err := hashBicepFileTree(resolved, h, visited); err != nil {
+			// Module file unresolvable — force cache miss.
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (cli *Cli) Build(ctx context.Context, file string) (BuildResult, error) {

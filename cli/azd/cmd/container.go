@@ -13,6 +13,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -1000,6 +1001,11 @@ func extractGlobalArgs() []string {
 	return result
 }
 
+// executingCommands tracks FindAndExecute calls currently in flight, keyed by the
+// joined argument string. This prevents concurrent execution of the same command path,
+// which would be a data race on the shared *cobra.Command state (ParseFlags, SetContext).
+var executingCommands sync.Map
+
 // FindAndExecute implements workflow.ConcurrentExecutor.
 // It finds the target sub-command from the given args and invokes its RunE directly,
 // bypassing the shared cobra.Command.args field that makes the standard
@@ -1015,10 +1021,22 @@ func extractGlobalArgs() []string {
 // (different first arg). Calling with identical subcommands concurrently is a
 // data race because cobra.Command.Find returns the same *cobra.Command pointer
 // for the same path, and ParseFlags/SetContext mutate that shared instance.
+// The executingCommands guard enforces this at runtime: a second concurrent call
+// with the same args returns an error instead of silently racing.
 //
 // Note: This bypasses cobra's PersistentPreRunE/PersistentPostRunE hooks. Callers must
 // ensure those hooks have already executed (e.g. via a parent command's normal dispatch).
 func (w *workflowCmdAdapter) FindAndExecute(ctx context.Context, args []string) error {
+	cmdKey := strings.Join(args, " ")
+	if _, loaded := executingCommands.LoadOrStore(cmdKey, true); loaded {
+		return fmt.Errorf(
+			"concurrent execution of command '%s' is not supported: "+
+				"cobra.Command is not safe for concurrent use with the same subcommand path",
+			cmdKey,
+		)
+	}
+	defer executingCommands.Delete(cmdKey)
+
 	cmd, remainingArgs, err := w.cmd.Find(args)
 	if err != nil {
 		return fmt.Errorf("finding command '%s': %w", strings.Join(args, " "), err)

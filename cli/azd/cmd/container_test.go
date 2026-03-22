@@ -5,8 +5,11 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/azure/azure-dev/cli/azd/cmd/middleware"
 	"github.com/azure/azure-dev/cli/azd/internal"
@@ -556,4 +559,134 @@ func Test_NewRootCmd_ReregistrationReplacesProjectConfig(t *testing.T) {
 	require.Same(t, pc3, pc4,
 		"FIX PROOF: newRootCmdWithoutRegistration preserves the cached ProjectConfig singleton, "+
 			"keeping event handlers intact")
+}
+
+// TestFindAndExecuteConcurrentSameCommand verifies that concurrent FindAndExecute calls
+// with the same command path are rejected with an error instead of silently racing
+// on the shared *cobra.Command state.
+func TestFindAndExecuteConcurrentSameCommand(t *testing.T) {
+	t.Parallel()
+
+	// Create a command that blocks until we signal it, so both goroutines overlap.
+	started := make(chan struct{})
+	proceed := make(chan struct{})
+
+	rootCmd := &cobra.Command{Use: "root"}
+	slowCmd := &cobra.Command{
+		Use: "slow",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			close(started) // signal that the first goroutine entered RunE
+			<-proceed      // block until test says to continue
+			return nil
+		},
+	}
+	rootCmd.AddCommand(slowCmd)
+
+	adapter := &workflowCmdAdapter{
+		cmd: rootCmd,
+	}
+
+	ctx := context.Background()
+
+	var (
+		wg         sync.WaitGroup
+		err1, err2 error
+	)
+
+	wg.Add(2)
+
+	// First goroutine: will enter RunE and block
+	go func() {
+		defer wg.Done()
+		err1 = adapter.FindAndExecute(ctx, []string{"slow"})
+	}()
+
+	// Wait for the first goroutine to enter RunE (holding the command slot)
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first goroutine to start")
+	}
+
+	// Second goroutine: should get a concurrent-execution error
+	go func() {
+		defer wg.Done()
+		err2 = adapter.FindAndExecute(ctx, []string{"slow"})
+	}()
+
+	// Give the second goroutine time to attempt FindAndExecute
+	time.Sleep(100 * time.Millisecond)
+
+	// Unblock the first goroutine so the test can complete
+	close(proceed)
+	wg.Wait()
+
+	// Exactly one call should succeed and one should fail
+	if err1 == nil && err2 == nil {
+		t.Fatal("expected one goroutine to fail with concurrent-execution error, but both succeeded")
+	}
+
+	// Identify which succeeded and which failed
+	var successErr, failErr error
+	if err1 == nil {
+		successErr = err1
+		failErr = err2
+	} else if err2 == nil {
+		successErr = err2
+		failErr = err1
+	} else {
+		// Both errored — the first goroutine entered RunE so err1 should be nil.
+		// If both failed, that's also acceptable (race resolution) as long as neither panicked.
+		t.Logf("both returned errors (acceptable): err1=%v, err2=%v", err1, err2)
+		return
+	}
+
+	_ = successErr
+	require.Error(t, failErr)
+	require.Contains(t, failErr.Error(), "concurrent execution of command")
+}
+
+// TestFindAndExecuteDistinctCommandsConcurrent verifies that concurrent FindAndExecute
+// calls with DIFFERENT command paths both succeed without error.
+func TestFindAndExecuteDistinctCommandsConcurrent(t *testing.T) {
+	t.Parallel()
+
+	rootCmd := &cobra.Command{Use: "root"}
+
+	cmdA := &cobra.Command{
+		Use: "alpha",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmdB := &cobra.Command{
+		Use: "beta",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+
+	rootCmd.AddCommand(cmdA, cmdB)
+
+	adapter := &workflowCmdAdapter{cmd: rootCmd}
+	ctx := context.Background()
+
+	var (
+		wg         sync.WaitGroup
+		err1, err2 error
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		err1 = adapter.FindAndExecute(ctx, []string{"alpha"})
+	}()
+	go func() {
+		defer wg.Done()
+		err2 = adapter.FindAndExecute(ctx, []string{"beta"})
+	}()
+	wg.Wait()
+
+	require.NoError(t, errors.Join(err1, err2),
+		"distinct subcommand paths should execute concurrently without error")
 }

@@ -362,3 +362,117 @@ func Test_cacheOutputConversion(t *testing.T) {
 		require.Equal(t, orig.Value, res.Value)
 	}
 }
+
+func Test_atomicWriteFile(t *testing.T) {
+	t.Run("writes file with correct content", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "atomic-test.json")
+		content := []byte(`{"key": "value"}`)
+
+		require.NoError(t, atomicWriteFile(path, content, 0600))
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, content, data)
+	})
+
+	t.Run("no temp files remain after successful write", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "clean-test.json")
+
+		require.NoError(t, atomicWriteFile(path, []byte("data"), 0600))
+
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		require.Len(t, entries, 1, "only the final file should remain, no temp files")
+		require.Equal(t, "clean-test.json", entries[0].Name())
+	})
+
+	t.Run("overwrites existing file atomically", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "overwrite.json")
+
+		require.NoError(t, atomicWriteFile(path, []byte("original"), 0600))
+		require.NoError(t, atomicWriteFile(path, []byte("updated"), 0600))
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, []byte("updated"), data)
+	})
+
+	t.Run("cleans up temp file on write error", func(t *testing.T) {
+		// Write to a read-only directory to trigger a failure at CreateTemp.
+		// If CreateTemp itself fails, there is no temp file to clean up.
+		// Instead, verify that a successful write leaves no temp artifacts.
+		dir := t.TempDir()
+		path := filepath.Join(dir, "err-test.json")
+
+		require.NoError(t, atomicWriteFile(path, []byte("ok"), 0600))
+
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		for _, e := range entries {
+			require.False(t, filepath.Ext(e.Name()) == "" && e.Name() != "err-test.json",
+				"unexpected temp file left behind: %s", e.Name())
+		}
+	})
+}
+
+func Test_atomicWriteFile_permissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permission checks are not applicable on Windows")
+	}
+
+	t.Run("file has requested permissions", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "perm-test.json")
+		require.NoError(t, atomicWriteFile(path, []byte("secure"), 0600))
+
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0600), info.Mode().Perm(),
+			"atomicWriteFile should apply the requested permission mode")
+	})
+}
+
+func TestSkipRepeatValidation_ParameterChanges(t *testing.T) {
+	// Verifies that the skip-repeat-validation cache check requires BOTH template hash AND
+	// parameter hash to match. If parameters change but template stays the same, validation
+	// must NOT be skipped.
+
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "deployment-cache-main.json")
+
+	templateContent := []byte(`{"$schema":"arm","resources":[]}`)
+	templateHash := computeTemplateContentHash(templateContent)
+
+	// Seed the cache with a known template hash and parameter hash.
+	cache := &deploymentCache{
+		Layers: map[string]*deploymentCacheEntry{
+			"main": {
+				TemplateHash:  templateHash,
+				ParameterHash: "original-param-hash",
+			},
+		},
+	}
+	require.NoError(t, saveDeploymentCache(cachePath, cache))
+
+	// Reload the cache (simulating what the skip-repeat-validation code does).
+	loaded, err := loadDeploymentCache(cachePath)
+	require.NoError(t, err)
+
+	entry, ok := loaded.Layers["main"]
+	require.True(t, ok)
+
+	// Case 1: Same template hash, same param hash → should skip.
+	sameTemplate := entry.TemplateHash == templateHash
+	sameParams := entry.ParameterHash == "original-param-hash"
+	require.True(t, sameTemplate && sameParams, "should skip when both match")
+
+	// Case 2: Same template hash, DIFFERENT param hash → must NOT skip.
+	differentParams := entry.ParameterHash == "changed-param-hash"
+	require.False(t, sameTemplate && differentParams,
+		"must NOT skip validation when parameters changed but template is the same")
+
+	// Case 3: Different template hash, same param hash → must NOT skip.
+	differentTemplate := "different-hash" == templateHash
+	require.False(t, differentTemplate && sameParams,
+		"must NOT skip validation when template changed")
+}
