@@ -85,13 +85,11 @@ func Test_syncEnvManager_serializesSaves(t *testing.T) {
 
 		const goroutines = 50
 		var wg sync.WaitGroup
-		wg.Add(goroutines)
 
 		for i := 0; i < goroutines; i++ {
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_ = safe.Save(context.Background(), env)
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -119,13 +117,11 @@ func Test_syncEnvManager_serializesSaves(t *testing.T) {
 
 		const goroutines = 50
 		var wg sync.WaitGroup
-		wg.Add(goroutines)
 
 		for i := 0; i < goroutines; i++ {
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_ = safe.SaveWithOptions(context.Background(), env, nil)
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -158,17 +154,14 @@ func Test_syncEnvManager_serializesSaves(t *testing.T) {
 
 		const goroutines = 30
 		var wg sync.WaitGroup
-		wg.Add(goroutines * 2)
 
 		for i := 0; i < goroutines; i++ {
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_ = safe.Save(context.Background(), env)
-			}()
-			go func() {
-				defer wg.Done()
+			})
+			wg.Go(func() {
 				_ = safe.SaveWithOptions(context.Background(), env, nil)
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -230,16 +223,14 @@ func Test_environmentClone_isIndependent(t *testing.T) {
 		}
 
 		var wg sync.WaitGroup
-		wg.Add(cloneCount)
 
 		for i := 0; i < cloneCount; i++ {
-			go func(idx int) {
-				defer wg.Done()
-				env := clones[idx]
+			wg.Go(func() {
+				env := clones[i]
 				for j := 0; j < 100; j++ {
 					env.DotenvSet("KEY", "value")
 				}
-			}(i)
+			})
 		}
 		wg.Wait()
 

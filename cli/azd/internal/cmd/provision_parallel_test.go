@@ -26,13 +26,11 @@ func TestSyncConsole_ConcurrentMessage(t *testing.T) {
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sc.Message(ctx, "hello")
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -50,21 +48,17 @@ func TestSyncConsole_ConcurrentMixedOps(t *testing.T) {
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	wg.Add(goroutines * 3)
 
 	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sc.Message(ctx, "msg")
-		}()
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			sc.ShowSpinner(ctx, "loading", input.Step)
-		}()
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			sc.StopSpinner(ctx, "done", input.Step)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -81,12 +75,10 @@ func TestSyncConsole_SerializesAccess(t *testing.T) {
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	for i := 0; i < goroutines; i++ {
-		go func(n int) {
-			defer wg.Done()
-			switch n % 5 {
+		wg.Go(func() {
+			switch i % 5 {
 			case 0:
 				sc.Message(ctx, "hello")
 			case 1:
@@ -98,7 +90,7 @@ func TestSyncConsole_SerializesAccess(t *testing.T) {
 			case 4:
 				sc.Message(ctx, "ux-item") // MessageUxItem needs a non-nil UxItem; use Message instead
 			}
-		}(i)
+		})
 	}
 
 	wg.Wait()

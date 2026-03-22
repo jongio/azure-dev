@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -249,6 +251,185 @@ func Preflight() error {
 	}
 	fmt.Println("All checks passed!")
 	return nil
+}
+
+// BenchBaseline runs benchmarks and saves the output as baseline for future comparison.
+// Results are saved to perf/baselines/{GOOS}/main.txt
+//
+// Usage: mage benchbaseline
+func BenchBaseline() error {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		return err
+	}
+	azdDir := filepath.Join(repoRoot, "cli", "azd")
+
+	dir := filepath.Join(azdDir, "perf", "baselines", runtime.GOOS)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating baseline dir: %w", err)
+	}
+
+	outPath := filepath.Join(dir, "main.txt")
+
+	fmt.Println("Running benchmarks (this may take several minutes)...")
+	out, err := runCapture(azdDir, "go", "test", "-bench=.", "-benchmem", "-count=6", "-timeout=10m", "./...")
+	if err != nil {
+		return fmt.Errorf("benchmarks failed: %w\n%s", err, out)
+	}
+
+	if err := os.WriteFile(outPath, []byte(out), 0o644); err != nil {
+		return fmt.Errorf("writing baseline: %w", err)
+	}
+
+	fmt.Printf("Baseline saved to %s\n", outPath)
+	return nil
+}
+
+// BenchCompare runs benchmarks and compares against the saved baseline using benchstat.
+// Requires benchstat: go install golang.org/x/perf/cmd/benchstat@latest
+//
+// Usage: mage benchcompare
+func BenchCompare() error {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		return err
+	}
+	azdDir := filepath.Join(repoRoot, "cli", "azd")
+
+	baseline := filepath.Join(azdDir, "perf", "baselines", runtime.GOOS, "main.txt")
+	if _, err := os.Stat(baseline); err != nil {
+		return fmt.Errorf("baseline not found at %s — run 'mage benchbaseline' first", baseline)
+	}
+
+	if err := requireTool("benchstat",
+		"go install golang.org/x/perf/cmd/benchstat@latest"); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp("", "bench-new-*.txt")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	tmp.Close()
+
+	fmt.Println("Running benchmarks (this may take several minutes)...")
+	out, err := runCapture(azdDir, "go", "test", "-bench=.", "-benchmem", "-count=6", "-timeout=10m", "./...")
+	if err != nil {
+		return fmt.Errorf("benchmarks failed: %w\n%s", err, out)
+	}
+
+	if err := os.WriteFile(tmp.Name(), []byte(out), 0o644); err != nil {
+		return fmt.Errorf("writing temp results: %w", err)
+	}
+
+	stat, err := runCapture(azdDir, "benchstat", "old="+baseline, "new="+tmp.Name())
+	if err != nil {
+		// benchstat exits non-zero only on usage errors; partial output is still useful.
+		fmt.Fprintf(os.Stderr, "benchstat warning: %v\n", err)
+	}
+
+	fmt.Println(stat)
+	return nil
+}
+
+// BenchRegress runs benchmarks and fails if any regression exceeds thresholds.
+// Thresholds: >15% timing regression or >10% memory regression (p<0.05).
+//
+// Usage: mage benchregress
+func BenchRegress() error {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		return err
+	}
+	azdDir := filepath.Join(repoRoot, "cli", "azd")
+
+	baseline := filepath.Join(azdDir, "perf", "baselines", runtime.GOOS, "main.txt")
+	if _, err := os.Stat(baseline); err != nil {
+		return fmt.Errorf("baseline not found at %s — run 'mage benchbaseline' first", baseline)
+	}
+
+	if err := requireTool("benchstat",
+		"go install golang.org/x/perf/cmd/benchstat@latest"); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp("", "bench-regress-*.txt")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	tmp.Close()
+
+	fmt.Println("Running benchmarks (this may take several minutes)...")
+	out, err := runCapture(azdDir, "go", "test", "-bench=.", "-benchmem", "-count=6", "-timeout=10m", "./...")
+	if err != nil {
+		return fmt.Errorf("benchmarks failed: %w\n%s", err, out)
+	}
+
+	if err := os.WriteFile(tmp.Name(), []byte(out), 0o644); err != nil {
+		return fmt.Errorf("writing temp results: %w", err)
+	}
+
+	stat, err := runCapture(azdDir, "benchstat", "old="+baseline, "new="+tmp.Name())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchstat warning: %v\n", err)
+	}
+
+	regressions := parseBenchRegressions(stat)
+	if len(regressions) > 0 {
+		fmt.Println(stat)
+		return fmt.Errorf("performance regressions detected:\n%s", strings.Join(regressions, "\n"))
+	}
+
+	fmt.Println("No significant regressions detected.")
+	return nil
+}
+
+// parseBenchRegressions scans benchstat output for significant regressions.
+// Returns a list of human-readable regression descriptions.
+// Thresholds: >15% for sec/op (timing), >10% for B/op (memory).
+func parseBenchRegressions(output string) []string {
+	re := regexp.MustCompile(`(Benchmark\S*)\s+.*\+(\d+(?:\.\d+)?)%\s+\(p=(\d+(?:\.\d+)?)`)
+
+	var regressions []string
+	var metric string
+
+	for _, line := range strings.Split(output, "\n") {
+		switch {
+		case strings.Contains(line, "sec/op"):
+			metric = "sec/op"
+		case strings.Contains(line, "B/op"):
+			metric = "B/op"
+		case strings.Contains(line, "allocs/op"):
+			metric = "allocs/op"
+		}
+
+		m := re.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+
+		name := m[1]
+		pct, _ := strconv.ParseFloat(m[2], 64)
+		pVal, _ := strconv.ParseFloat(m[3], 64)
+
+		if pVal >= 0.05 {
+			continue // not statistically significant
+		}
+
+		threshold := 15.0
+		if metric == "B/op" || metric == "allocs/op" {
+			threshold = 10.0
+		}
+
+		if pct > threshold {
+			regressions = append(regressions,
+				fmt.Sprintf("  %s: +%.2f%% %s (p=%.3f)", name, pct, metric, pVal))
+		}
+	}
+
+	return regressions
 }
 
 // runCapture runs a command and returns its combined stdout/stderr.
