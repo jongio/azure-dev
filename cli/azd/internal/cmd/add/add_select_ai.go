@@ -193,8 +193,8 @@ func (a *AddAction) supportedModelsInLocation(ctx context.Context, subId, locati
 }
 
 type ModelResponse struct {
-	Value    []ModelList `json:"value"`
 	NextLink *string     `json:"nextLink"`
+	Value    []ModelList `json:"value"`
 }
 
 type ModelList struct {
@@ -204,10 +204,10 @@ type ModelList struct {
 
 type Model struct {
 	Name             string          `json:"name"`
-	Skus             []ModelSku      `json:"skus"`
 	Version          string          `json:"version"`
 	SystemData       ModelSystemData `json:"systemData"`
 	Format           string          `json:"format"`
+	Skus             []ModelSku      `json:"skus"`
 	IsDefaultVersion bool            `json:"isDefaultVersion"`
 }
 

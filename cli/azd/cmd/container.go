@@ -897,6 +897,7 @@ func registerCommonDependencies(container *ioc.NestedContainer) {
 			newCommand: func() *cobra.Command {
 				return newRootCmdWithoutRegistration(container)
 			},
+			cmd:        newRootCmdWithoutRegistration(container),
 			globalArgs: extractGlobalArgs(),
 		}
 	})
@@ -956,6 +957,7 @@ func registerCommonDependencies(container *ioc.NestedContainer) {
 // See: https://github.com/Azure/azure-dev/issues/6530
 type workflowCmdAdapter struct {
 	newCommand func() *cobra.Command
+	cmd        *cobra.Command
 	globalArgs []string
 }
 

@@ -18,14 +18,14 @@ import (
 
 // RemoteCredential implements azcore.TokenCredential by using the remote credential protocol.
 type RemoteCredential struct {
+	// The transport to use to make requests.
+	transporter policy.Transporter
 	// The endpoint of the remote endpoint to authenticate against.
 	endpoint string
 	// The key to use to authenticate against the remote endpoint.
 	key string
 	// Tenant ID to use to authenticate, instead of the default. Optional.
 	tenantID string
-	// The transport to use to make requests.
-	transporter policy.Transporter
 }
 
 func newRemoteCredential(endpoint, key, tenantID string, transporter policy.Transporter) *RemoteCredential {

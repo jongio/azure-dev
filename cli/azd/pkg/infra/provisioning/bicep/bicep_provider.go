@@ -64,35 +64,35 @@ const (
 
 // BicepProvider exposes infrastructure provisioning using Azure Bicep templates
 type BicepProvider struct {
-	// Options that are available after Initialize()
-	options               provisioning.Options
-	projectPath           string
-	path                  string
-	layer                 string
-	mode                  bicepFileMode
-	ignoreDeploymentState bool
 
 	// Dependencies
 	envManager          environment.Manager
-	env                 *environment.Environment
 	console             input.Console
+	resourceManager     infra.ResourceManager
+	prompters           prompt.Prompter
+	curPrincipal        provisioning.CurrentPrincipalIdProvider
+	keyvaultService     keyvault.KeyVaultService
+	serviceLocator      ioc.ServiceLocator
+	env                 *environment.Environment
 	bicepCli            *bicep.Cli
 	azapi               *azapi.AzureClient
 	resourceService     *azapi.ResourceService
-	resourceManager     infra.ResourceManager
 	deploymentManager   *infra.DeploymentManager
-	prompters           prompt.Prompter
-	curPrincipal        provisioning.CurrentPrincipalIdProvider
-	portalUrlBase       string
-	keyvaultService     keyvault.KeyVaultService
 	subscriptionManager *account.SubscriptionsManager
 	aiModelService      *ai.AiModelService
-	serviceLocator      ioc.ServiceLocator
 	alphaFeatureManager *alpha.FeatureManager
 
 	// Internal state
 	// compileBicepResult is cached to avoid recompiling the same bicep file multiple times in the same azd run.
 	compileBicepMemoryCache *compileBicepResult
+	// Options that are available after Initialize()
+	options               provisioning.Options
+	projectPath           string
+	path                  string
+	layer                 string
+	portalUrlBase         string
+	mode                  bicepFileMode
+	ignoreDeploymentState bool
 }
 
 var adaptivePollingFeatureKey = alpha.MustFeatureKey("provision.adaptivePolling")
@@ -101,19 +101,19 @@ var adaptivePollingFeatureKey = alpha.MustFeatureKey("provision.adaptivePolling"
 // It starts at a fast interval and backs off when the deployment state is unchanged,
 // resetting to fast polling when new resources complete or fail.
 type adaptivePoller struct {
-	minInterval     time.Duration
-	maxInterval     time.Duration
-	currentInterval time.Duration
-	backoffFactor   float64
+	minInterval       time.Duration
+	maxInterval       time.Duration
+	currentInterval   time.Duration
+	backoffFactor     float64
 	lastResourceCount int
 }
 
 func newAdaptivePoller() *adaptivePoller {
 	return &adaptivePoller{
-		minInterval:     1 * time.Second,
-		maxInterval:     10 * time.Second,
-		currentInterval: 1 * time.Second,
-		backoffFactor:   2.0,
+		minInterval:       1 * time.Second,
+		maxInterval:       10 * time.Second,
+		currentInterval:   1 * time.Second,
+		backoffFactor:     2.0,
 		lastResourceCount: -1,
 	}
 }
@@ -999,10 +999,10 @@ func convertPropertyChanges(changes []*armresources.WhatIfPropertyChange) []prov
 }
 
 type itemToPurge struct {
-	resourceType      string
-	count             int
 	purge             func(skipPurge bool, self *itemToPurge) error
+	resourceType      string
 	cognitiveAccounts []cognitiveAccount
+	count             int
 }
 
 func (p *BicepProvider) scopeForTemplate(t azure.ArmTemplate) (infra.Scope, error) {
@@ -1802,22 +1802,22 @@ func (p *BicepProvider) forceDeleteLogAnalyticsWorkspaces(
 }
 
 type loadParametersResult struct {
-	parameters     map[string]azure.ArmParameter
-	locationParams []string
+	parameters map[string]azure.ArmParameter
 	// envMapping is a map of parameter name to environment variable names
 	// holds information about which parameters are mapped to which env vars for
 	// cases like "param": "${env:AZURE_FOO}-${env:AZURE_BAR}", envMapping will
 	// contain {"param": ["AZURE_FOO", "AZURE_BAR"]}
 	// This information is useful for setting a CI/CD automatically. Each env var
 	// will be set to the value of the parameter as variable or secret.
-	envMapping map[string][]string
+	envMapping     map[string][]string
+	locationParams []string
 }
 
 // envSubstResult contains the results of environment variable substitution
 type envSubstResult struct {
-	hasUnsetEnvVar                  bool
 	mappedEnvVars                   []string
 	parametersMappedToAzureLocation []string
+	hasUnsetEnvVar                  bool
 }
 
 // evalParamEnvSubst evaluates environment variable substitution on a single parameter string value.
@@ -2042,10 +2042,10 @@ type compiledBicepParamResult struct {
 }
 
 type compileBicepResult struct {
-	RawArmTemplate azure.RawArmTemplate
-	Template       azure.ArmTemplate
+	Template azure.ArmTemplate
 	// Parameters are populated either by compiling a .bicepparam (automatically) or by azd after compiling a .bicep file.
-	Parameters azure.ArmParameters
+	Parameters     azure.ArmParameters
+	RawArmTemplate azure.RawArmTemplate
 }
 
 // compileBicep compiles the bicep module at the given path and returns the compiled ARM template and parameters.

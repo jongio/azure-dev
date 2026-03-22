@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
-
 package bicep
 
 import (
@@ -9,30 +8,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
+	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
-	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
 )
 
 var localCacheFeatureKey = alpha.MustFeatureKey("provision.localCache")
 
 // deploymentCacheOutput stores a single output parameter from a deployment.
 type deploymentCacheOutput struct {
-	Type  string `json:"type"`
 	Value any    `json:"value"`
+	Type  string `json:"type"`
 }
 
 // deploymentCacheEntry stores the cached state for a single deployment layer.
 type deploymentCacheEntry struct {
-	TemplateHash    string                           `json:"templateHash"`
-	ParameterHash   string                           `json:"parameterHash"`
 	TemplateModTime time.Time                        `json:"templateModTime"`
 	LastDeployedAt  time.Time                        `json:"lastDeployedAt"`
 	Outputs         map[string]deploymentCacheOutput `json:"outputs"`
+	TemplateHash    string                           `json:"templateHash"`
+	ParameterHash   string                           `json:"parameterHash"`
 }
 
 // deploymentCache is the top-level structure persisted to deployment-cache-{layer}.json.
@@ -66,13 +64,11 @@ func loadDeploymentCache(cachePath string) (*deploymentCache, error) {
 		}
 		return nil, err
 	}
-
 	var cache deploymentCache
 	if err := json.Unmarshal(data, &cache); err != nil {
 		// Treat corrupt cache as empty – fall through to Azure API.
 		return &deploymentCache{Layers: make(map[string]*deploymentCacheEntry)}, nil
 	}
-
 	if cache.Layers == nil {
 		cache.Layers = make(map[string]*deploymentCacheEntry)
 	}
@@ -111,13 +107,11 @@ func (p *BicepProvider) checkLocalDeploymentCache(
 	if err != nil {
 		return nil, fmt.Errorf("loading local cache: %w", err)
 	}
-
 	entry, ok := cache.Layers[p.layerCacheKey()]
 	if !ok {
 		logDS("local cache: no entry for layer %q", p.layerCacheKey())
 		return nil, nil
 	}
-
 	// 1. Quick check: source file modification time.
 	info, err := os.Stat(p.path)
 	if err != nil {
@@ -127,20 +121,17 @@ func (p *BicepProvider) checkLocalDeploymentCache(
 		logDS("local cache: source file mod time changed")
 		return nil, nil
 	}
-
 	// 2. Template content hash (local SHA-256 of compiled ARM JSON).
 	templateHash := computeTemplateContentHash(planned.RawArmTemplate)
 	if templateHash != entry.TemplateHash {
 		logDS("local cache: template hash changed")
 		return nil, nil
 	}
-
 	// 3. Parameter hash.
 	if currentParamsHash != entry.ParameterHash {
 		logDS("local cache: parameter hash changed")
 		return nil, nil
 	}
-
 	// All checks passed – reconstruct outputs from cache.
 	outputs := make(map[string]provisioning.OutputParameter, len(entry.Outputs))
 	for k, v := range entry.Outputs {
@@ -149,10 +140,8 @@ func (p *BicepProvider) checkLocalDeploymentCache(
 			Value: v.Value,
 		}
 	}
-
 	logDS("local cache: hit – skipping Azure API call (layer %q)", p.layerCacheKey())
 	result.Outputs = outputs
-
 	return &provisioning.DeployResult{
 		Deployment:    result,
 		SkippedReason: provisioning.DeploymentStateSkipped,
@@ -171,13 +160,11 @@ func (p *BicepProvider) updateLocalDeploymentCache(
 		logDS("local cache: failed to load for update: %s", err.Error())
 		return
 	}
-
 	// Source file mod time.
 	var modTime time.Time
 	if info, err := os.Stat(p.path); err == nil {
 		modTime = info.ModTime()
 	}
-
 	// Convert outputs to cache format.
 	cachedOutputs := make(map[string]deploymentCacheOutput, len(outputs))
 	for k, v := range outputs {
@@ -186,7 +173,6 @@ func (p *BicepProvider) updateLocalDeploymentCache(
 			Value: v.Value,
 		}
 	}
-
 	cache.Layers[p.layerCacheKey()] = &deploymentCacheEntry{
 		TemplateHash:    computeTemplateContentHash(planned.RawArmTemplate),
 		ParameterHash:   currentParamsHash,
@@ -194,7 +180,6 @@ func (p *BicepProvider) updateLocalDeploymentCache(
 		LastDeployedAt:  time.Now().UTC(),
 		Outputs:         cachedOutputs,
 	}
-
 	if err := saveDeploymentCache(cachePath, cache); err != nil {
 		logDS("local cache: failed to save: %s", err.Error())
 	}

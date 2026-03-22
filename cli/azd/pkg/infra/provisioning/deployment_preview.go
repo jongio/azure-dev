@@ -5,8 +5,8 @@ package provisioning
 
 // DeploymentPreview defines the general structure for a deployment preview regardless of the deployment provider.
 type DeploymentPreview struct {
-	Status     string
 	Properties *DeploymentPreviewProperties
+	Status     string
 }
 
 // DeploymentPreviewProperties holds the changes for the deployment preview.

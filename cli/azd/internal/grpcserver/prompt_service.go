@@ -724,9 +724,9 @@ func (s *promptService) PromptAiDeployment(
 	// Collect available versions (filtered by options.versions if provided), along with
 	// precomputed valid SKU candidates so version and SKU steps stay consistent.
 	type versionCandidate struct {
+		label         string
 		version       ai.AiModelVersion
 		skuCandidates []skuCandidate
-		label         string
 	}
 	var availableVersions []versionCandidate
 	for _, v := range targetModel.Versions {
@@ -1198,9 +1198,9 @@ func modelQuotaSummary(model ai.AiModel, usageMap map[string]ai.AiModelUsage) st
 }
 
 type skuCandidate struct {
-	sku       ai.AiModelSku
 	remaining *float64
 	label     string
+	sku       ai.AiModelSku
 }
 
 func buildSkuCandidatesForVersion(

@@ -38,12 +38,13 @@ func (et *externalTool) Name() string {
 }
 
 type ExternalFrameworkService struct {
-	extension    *extensions.Extension
+	console input.Console
+
+	extension *extensions.Extension
+
+	broker       *grpcbroker.MessageBroker[azdext.FrameworkServiceMessage]
 	languageName string
 	languageKind ServiceLanguageKind
-	console      input.Console
-
-	broker *grpcbroker.MessageBroker[azdext.FrameworkServiceMessage]
 }
 
 // NewExternalFrameworkService creates a new external framework service

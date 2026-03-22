@@ -11,9 +11,9 @@ import (
 
 // PatternMatcher handles matching error messages against patterns.
 type PatternMatcher struct {
-	// compiledPatterns caches compiled regex patterns for performance
-	mu               sync.RWMutex
 	compiledPatterns map[string]*regexp.Regexp
+	// compiledPatterns caches compiled regex patterns for performance
+	mu sync.RWMutex
 }
 
 // NewPatternMatcher creates a new PatternMatcher instance.

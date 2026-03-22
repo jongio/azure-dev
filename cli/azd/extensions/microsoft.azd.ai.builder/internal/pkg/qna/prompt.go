@@ -10,13 +10,13 @@ import (
 )
 
 type TextPrompt struct {
+	Client            *azdext.AzdClient
 	Message           string
 	HelpMessage       string
 	Placeholder       string
 	DefaultValue      string
 	ValidationMessage string
 	RequiredMessage   string
-	Client            *azdext.AzdClient
 }
 
 func (p *TextPrompt) Ask(ctx context.Context, question Question) (any, error) {
@@ -39,12 +39,12 @@ func (p *TextPrompt) Ask(ctx context.Context, question Question) (any, error) {
 }
 
 type SingleSelectPrompt struct {
-	Message         string
-	HelpMessage     string
-	Choices         []Choice
 	EnableFiltering *bool
 	Client          *azdext.AzdClient
 	BeforeAsk       func(ctx context.Context, q *Question, p *SingleSelectPrompt) error
+	Message         string
+	HelpMessage     string
+	Choices         []Choice
 }
 
 func (p *SingleSelectPrompt) Ask(ctx context.Context, question Question) (any, error) {
@@ -80,12 +80,12 @@ func (p *SingleSelectPrompt) Ask(ctx context.Context, question Question) (any, e
 }
 
 type MultiSelectPrompt struct {
-	Message         string
-	HelpMessage     string
-	Choices         []Choice
 	EnableFiltering *bool
 	Client          *azdext.AzdClient
 	BeforeAsk       func(ctx context.Context, q *Question, p *MultiSelectPrompt) error
+	Message         string
+	HelpMessage     string
+	Choices         []Choice
 }
 
 func (p *MultiSelectPrompt) Ask(ctx context.Context, question Question) (any, error) {
@@ -124,11 +124,11 @@ func (p *MultiSelectPrompt) Ask(ctx context.Context, question Question) (any, er
 }
 
 type ConfirmPrompt struct {
-	Message      string
 	DefaultValue *bool
+	Client       *azdext.AzdClient
+	Message      string
 	HelpMessage  string
 	Placeholder  string
-	Client       *azdext.AzdClient
 }
 
 func (p *ConfirmPrompt) Ask(ctx context.Context, question Question) (any, error) {
@@ -148,14 +148,14 @@ func (p *ConfirmPrompt) Ask(ctx context.Context, question Question) (any, error)
 }
 
 type SubscriptionResourcePrompt struct {
+	AzureContext            *azdext.AzureContext
+	Client                  *azdext.AzdClient
+	BeforeAsk               func(ctx context.Context, q *Question, p *SubscriptionResourcePrompt) error
 	Message                 string
 	HelpMessage             string
 	ResourceType            string
 	ResourceTypeDisplayName string
 	Kinds                   []string
-	AzureContext            *azdext.AzureContext
-	Client                  *azdext.AzdClient
-	BeforeAsk               func(ctx context.Context, q *Question, p *SubscriptionResourcePrompt) error
 }
 
 func (p *SubscriptionResourcePrompt) Ask(ctx context.Context, question Question) (any, error) {

@@ -17,8 +17,8 @@ var (
 
 // AzCliAccessToken represents the value returned by `az account get-access-token`
 type AzCliAccessToken struct {
-	AccessToken string
 	ExpiresOn   *time.Time
+	AccessToken string
 }
 
 func isNotLoggedInMessage(s string) bool {

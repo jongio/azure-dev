@@ -21,8 +21,8 @@ var (
 
 type TemplateManager struct {
 	sourceManager SourceManager
-	sources       []Source
 	console       input.Console
+	sources       []Source
 }
 
 func NewTemplateManager(sourceManager SourceManager, console input.Console) (*TemplateManager, error) {

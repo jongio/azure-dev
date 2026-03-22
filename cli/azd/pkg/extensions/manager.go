@@ -56,12 +56,12 @@ type FilterOptions struct {
 	Version string
 	// Source is used to specify the source of the extension to install
 	Source string
-	// Tags is used to specify the tags of the extension to install
-	Tags []string
 	// Capability is used to filter extensions by capability type
 	Capability CapabilityType
 	// Provider is used to filter extensions by provider name
 	Provider string
+	// Tags is used to specify the tags of the extension to install
+	Tags []string
 }
 
 type sourceFilterPredicate func(config *SourceConfig) bool
@@ -142,15 +142,15 @@ func createExtensionFilter(options *FilterOptions) extensionFilterPredicate {
 
 // Manager is responsible for managing extensions
 type Manager struct {
-	sourceManager *SourceManager
-	sources       []Source
-	installed     map[string]*Extension
 	configManager config.UserConfigManager
 	userConfig    config.Config
-	pipeline      azruntime.Pipeline
+	sourceManager *SourceManager
+	installed     map[string]*Extension
 
 	// Lazy runner to avoid circular dependency issues since extension manager is used during command bootstrapping
 	lazyRunner *lazy.Lazy[*Runner]
+	sources    []Source
+	pipeline   azruntime.Pipeline
 }
 
 // NewManager creates a new extension manager

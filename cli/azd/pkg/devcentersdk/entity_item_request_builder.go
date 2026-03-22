@@ -17,11 +17,11 @@ type entityItemRequestInfo struct {
 }
 
 type EntityItemRequestBuilder[T any] struct {
-	id          string
 	client      *devCenterClient
 	builder     *T
 	requestInfo *entityItemRequestInfo
 	devCenter   *DevCenter
+	id          string
 }
 
 // Creates a new EntityItemRequestBuilder

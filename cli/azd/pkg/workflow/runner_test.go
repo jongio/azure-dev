@@ -149,3 +149,38 @@ func TestRunner_Run_WrappedErrAbortedByUser(t *testing.T) {
 	require.ErrorIs(t, err, internal.ErrAbortedByUser)
 	require.NotContains(t, err.Error(), "error executing step command")
 }
+
+func Test_RunConcurrentSteps_duplicateSubcommand(t *testing.T) {
+	t.Run("rejects duplicate top-level subcommands", func(t *testing.T) {
+		runner := &mockConcurrentRunner{}
+		wfRunner := NewRunner(runner, nil)
+
+		steps := []*Step{
+			NewAzdCommandStep("provision", "--subscription", "abc"),
+			NewAzdCommandStep("provision", "--subscription", "def"),
+		}
+
+		err := wfRunner.RunConcurrentSteps(context.Background(), steps)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "duplicate subcommand")
+		require.ErrorContains(t, err, "provision")
+		// Ensure no commands were actually executed
+		require.Equal(t, int32(0), runner.callCount.Load(),
+			"no commands should execute when duplicate subcommands are detected")
+	})
+
+	t.Run("allows distinct subcommands", func(t *testing.T) {
+		runner := &mockConcurrentRunner{}
+		wfRunner := NewRunner(runner, nil)
+
+		steps := []*Step{
+			NewAzdCommandStep("provision"),
+			NewAzdCommandStep("deploy"),
+			NewAzdCommandStep("package"),
+		}
+
+		err := wfRunner.RunConcurrentSteps(context.Background(), steps)
+		require.NoError(t, err)
+		require.Equal(t, int32(3), runner.callCount.Load())
+	})
+}

@@ -40,8 +40,8 @@ func ResolveCommandFlags(metadata *ExtensionCommandMetadata, args []string) []st
 }
 
 type commandEntry struct {
-	path    []string
 	command *Command
+	path    []string
 }
 
 // matchCommand returns the longest matching command entry for the provided args.

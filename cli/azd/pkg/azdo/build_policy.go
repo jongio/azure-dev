@@ -205,6 +205,6 @@ type getPolicyConfigurationsArgs struct {
 
 // Return type for the GetPolicyConfigurations function
 type getPolicyConfigurationsResponseValue struct {
-	Value             []policy.PolicyConfiguration
 	ContinuationToken string
+	Value             []policy.PolicyConfiguration
 }

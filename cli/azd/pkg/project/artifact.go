@@ -72,10 +72,10 @@ var validArtifactKinds = []ArtifactKind{
 
 // Artifact represents a build, package, or deployment artifact with its location and metadata.
 type Artifact struct {
+	Metadata     map[string]string `json:"metadata,omitempty"`     // Optional: arbitrary key/value pairs
 	Kind         ArtifactKind      `json:"kind"`                   // Required: artifact type
 	Location     string            `json:"location,omitempty"`     // Optional: location of the artifact
 	LocationKind LocationKind      `json:"locationKind,omitempty"` // Optional: local, remote, or other
-	Metadata     map[string]string `json:"metadata,omitempty"`     // Optional: arbitrary key/value pairs
 }
 
 // ToString implements the UxItem interface for display output

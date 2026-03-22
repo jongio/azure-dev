@@ -37,8 +37,8 @@ type AzureCredentials struct {
 
 // ServiceTreeNullValueError represents an error that occurs when a null value is provided for ServiceManagementReference
 type ServiceTreeNullValueError struct {
-	ApplicationName string
 	Err             error
+	ApplicationName string
 }
 
 func (e *ServiceTreeNullValueError) Error() string {
@@ -51,8 +51,8 @@ func (e *ServiceTreeNullValueError) Unwrap() error {
 
 // ServiceTreeInvalidError represents an error that occurs when invalid value is provider for service tree id
 type ServiceTreeInvalidError struct {
-	ApplicationName string
 	Err             error
+	ApplicationName string
 }
 
 func (e *ServiceTreeInvalidError) Error() string {
@@ -138,9 +138,9 @@ func (ad *entraIdService) GetServicePrincipal(
 }
 
 type CreateOrUpdateServicePrincipalOptions struct {
-	RolesToAssign              []string
 	Description                *string
 	ServiceManagementReference *string
+	RolesToAssign              []string
 }
 
 func (ad *entraIdService) CreateOrUpdateServicePrincipal(

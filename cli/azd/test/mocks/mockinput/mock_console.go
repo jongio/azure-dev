@@ -247,10 +247,10 @@ func (c *MockConsole) WhenSelect(predicate WhenPredicate) *MockConsoleExpression
 
 // MockConsoleExpression is an expression with options response or error
 type MockConsoleExpression struct {
-	command     string
 	respond     RespondFn
 	console     *MockConsole
 	predicateFn WhenPredicate
+	command     string
 }
 
 // Sets the response that will be returned for the current expression

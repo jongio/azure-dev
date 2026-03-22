@@ -42,8 +42,8 @@ func init() {
 }
 
 type AzdVersionInfo struct {
-	Version semver.Version
 	Commit  string
+	Version semver.Version
 }
 
 func IsDevVersion() bool {

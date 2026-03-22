@@ -32,10 +32,10 @@ import (
 // GitHubScmProvider implements ScmProvider using GitHub as the provider
 // for source control manager.
 type GitHubScmProvider struct {
-	newGitHubRepoCreated bool
 	console              input.Console
 	ghCli                *github.Cli
 	gitCli               *git.Cli
+	newGitHubRepoCreated bool
 }
 
 func NewGitHubScmProvider(

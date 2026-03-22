@@ -69,7 +69,7 @@ func parsePortsInLine(s string) ([]Port, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing port number: %w", err)
 		}
-		ports = append(ports, Port{portNumber, protocol})
+		ports = append(ports, Port{Protocol: protocol, Number: portNumber})
 	}
 	return ports, nil
 }

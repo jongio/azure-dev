@@ -62,11 +62,12 @@ type ServiceTargetProvider interface {
 
 // ServiceTargetManager handles registration and provisioning request forwarding for a provider.
 type ServiceTargetManager struct {
-	extensionId      string
 	client           *AzdClient
 	broker           *grpcbroker.MessageBroker[ServiceTargetMessage]
 	componentManager *ComponentManager[ServiceTargetProvider]
 	brokerLogger     *log.Logger
+
+	extensionId string
 
 	// Synchronization for concurrent access
 	mu sync.RWMutex

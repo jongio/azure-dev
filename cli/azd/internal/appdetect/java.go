@@ -84,13 +84,13 @@ func (jd *javaDetector) DetectProject(ctx context.Context, path string, entries 
 
 // mavenProject represents the top-level structure of a Maven POM file.
 type mavenProject struct {
-	XmlName              xml.Name             `xml:"project"`
-	Parent               parent               `xml:"parent"`
+	Parent               parent   `xml:"parent"`
+	XmlName              xml.Name `xml:"project"`
+	path                 string
 	Modules              []string             `xml:"modules>module"` // Capture the modules
 	Dependencies         []dependency         `xml:"dependencies>dependency"`
 	DependencyManagement dependencyManagement `xml:"dependencyManagement"`
 	Build                build                `xml:"build"`
-	path                 string
 }
 
 // Parent represents the parent POM if this project is a module.

@@ -1,6 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-name: test-combined-extensions
 services:
     api:
         project: ./src/api
@@ -9,6 +8,7 @@ services:
         customConfig:
             setting1: value1
         serviceExtension: api-specific
+name: test-combined-extensions
 projectExtension: global-setting
 sharedConfig:
     environment: production

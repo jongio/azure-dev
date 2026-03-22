@@ -18,12 +18,12 @@ type ServiceError struct {
 	Message string
 	// ErrorCode is the error code from the service (e.g., "Conflict", "NotFound")
 	ErrorCode string
-	// StatusCode is the HTTP status code (e.g., 409, 404, 500)
-	StatusCode int
 	// ServiceName is the service host/name for telemetry (e.g., "ai.azure.com")
 	ServiceName string
 	// Suggestion contains optional user-facing remediation guidance.
 	Suggestion string
+	// StatusCode is the HTTP status code (e.g., 409, 404, 500)
+	StatusCode int
 }
 
 // LocalError represents non-service extension errors, such as validation/config failures.

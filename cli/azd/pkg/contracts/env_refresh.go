@@ -22,8 +22,8 @@ const (
 // EnvRefreshOutputParameter is the contract for the value in the "outputs" map
 // of and EnvRefreshResult.
 type EnvRefreshOutputParameter struct {
-	Type  EnvRefreshOutputType `json:"type"`
 	Value any                  `json:"value"`
+	Type  EnvRefreshOutputType `json:"type"`
 }
 
 // EnvRefreshResource is the contract for a resource in the "resources" array

@@ -32,10 +32,10 @@ const (
 // https://github.com/MicrosoftDocs/azure-docs/blob/main/includes/app-service-deploy-zip-push-rest.md
 // https://github.com/projectkudu/kudu/wiki/REST-API
 type ZipDeployClient struct {
-	hostName         string
-	pipeline         runtime.Pipeline
 	cred             azcore.TokenCredential
 	armClientOptions *arm.ClientOptions
+	hostName         string
+	pipeline         runtime.Pipeline
 }
 
 type DeployResponse struct {
@@ -47,18 +47,18 @@ type DeployStatusResponse struct {
 }
 
 type DeployStatus struct {
-	Id           string     `json:"id"`
-	Status       int        `json:"status"`
-	StatusText   string     `json:"status_text"`
-	Message      string     `json:"message"`
 	Progress     *string    `json:"progress"`
 	ReceivedTime *time.Time `json:"received_time"`
 	StartTime    *time.Time `json:"start_time"`
 	EndTime      *time.Time `json:"end_time"`
-	Complete     bool       `json:"complete"`
-	Active       bool       `json:"active"`
+	Id           string     `json:"id"`
+	StatusText   string     `json:"status_text"`
+	Message      string     `json:"message"`
 	LogUrl       string     `json:"log_url"`
 	SiteName     string     `json:"site_name"`
+	Status       int        `json:"status"`
+	Complete     bool       `json:"complete"`
+	Active       bool       `json:"active"`
 }
 
 // Creates a new ZipDeployClient instance
@@ -370,9 +370,9 @@ func (c *ZipDeployClient) createDeployRequest(
 
 // Implementation of a Go SDK polling handler for async zip deploy operations
 type deployPollingHandler struct {
-	pipeline runtime.Pipeline
 	response *http.Response
 	result   *DeployStatusResponse
+	pipeline runtime.Pipeline
 }
 
 func newDeployPollingHandler(pipeline runtime.Pipeline, response *http.Response) *deployPollingHandler {

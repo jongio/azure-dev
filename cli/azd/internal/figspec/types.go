@@ -60,17 +60,17 @@ type Option struct {
 type Arg struct {
 	Name        string
 	Description string
-	IsOptional  bool
-	Suggestions []string
 	Generator   string
 	Template    string
+	Suggestions []string
+	IsOptional  bool
 }
 
 // CommandContext contains information about a command for custom processing
 type CommandContext struct {
 	Command     *cobra.Command
-	CommandPath string
 	Parent      *CommandContext
+	CommandPath string
 }
 
 // FlagContext contains information about a flag for custom processing

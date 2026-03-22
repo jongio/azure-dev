@@ -19,11 +19,11 @@ import (
 
 type TestProvider struct {
 	envManager  environment.Manager
-	env         *environment.Environment
-	projectPath string
-	options     provisioning.Options
 	console     input.Console
 	prompters   prompt.Prompter
+	env         *environment.Environment
+	options     provisioning.Options
+	projectPath string
 }
 
 // Name gets the name of the infra provider

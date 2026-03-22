@@ -9,32 +9,33 @@ import (
 
 // RunArgs exposes the command, arguments and other options when running console/shell commands
 type RunArgs struct {
-	Cmd  string
-	Args []string
-	// Any string from SensitiveData will be redacted as *** if found in Args
-	SensitiveData []string
-	Cwd           string
-	Env           []string
 
 	// Stderr will receive a copy of the text written to Stderr by
 	// the command.
 	// NOTE: RunResult.Stderr will still contain stderr output.
 	Stderr io.Writer
 
+	// When set will call the command with the specified StdIn
+	StdIn io.Reader
+
+	// When set will call the command with the specified StdOut
+	StdOut io.Writer
+
 	// Enables debug logging.
 	DebugLogging *bool
+
+	Cmd  string
+	Cwd  string
+	Args []string
+	// Any string from SensitiveData will be redacted as *** if found in Args
+	SensitiveData []string
+	Env           []string
 
 	// When set will run the command within a shell
 	UseShell bool
 
 	// When set will attach commands to std input/output
 	Interactive bool
-
-	// When set will call the command with the specified StdIn
-	StdIn io.Reader
-
-	// When set will call the command with the specified StdOut
-	StdOut io.Writer
 }
 
 // NewRunArgs creates a new instance with the specified cmd and args

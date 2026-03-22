@@ -58,9 +58,9 @@ type ShowEnvironment struct {
 
 type Show struct {
 	AppName         string
+	AzurePortalLink string
 	Services        []*ShowService
 	Environments    []*ShowEnvironment
-	AzurePortalLink string
 }
 
 func (s *Show) ToString(currentIndentation string) string {
@@ -147,9 +147,9 @@ func (s *Show) MarshalJSON() ([]byte, error) {
 }
 
 type ShowResource struct {
+	Variables   map[string]string
 	Name        string
 	TypeDisplay string
-	Variables   map[string]string
 }
 
 func (s *ShowResource) ToString(currentIndentation string) string {

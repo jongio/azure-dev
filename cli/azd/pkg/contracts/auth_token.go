@@ -10,11 +10,11 @@ import (
 
 // AuthTokenResult is the value returned by `azd auth token`. It matches the shape of `azcore.AccessToken`
 type AuthTokenResult struct {
-	// Token is the opaque access token, which may be provided to an Azure service.
-	Token string `json:"token"`
 	// ExpiresOn is the time at which the token is no longer valid. The time is a quoted string in
 	// RFC 3339 format.
 	ExpiresOn RFC3339Time `json:"expiresOn"`
+	// Token is the opaque access token, which may be provided to an Azure service.
+	Token string `json:"token"`
 }
 
 // RFC3339Time is a time.Time that uses time.RFC3339 format when marshaling to JSON, not time.RFC3339Nano as

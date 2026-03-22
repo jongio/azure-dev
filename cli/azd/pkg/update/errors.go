@@ -7,10 +7,10 @@ import "fmt"
 
 // UpdateError represents a typed update error with a result code for telemetry.
 type UpdateError struct {
-	// Code is the telemetry result code (e.g. "update.downloadFailed").
-	Code string
 	// Err is the underlying error.
 	Err error
+	// Code is the telemetry result code (e.g. "update.downloadFailed").
+	Code string
 }
 
 func (e *UpdateError) Error() string {

@@ -16,10 +16,10 @@ type entityItemRequestInfo struct {
 }
 
 type EntityItemRequestBuilder[T any] struct {
-	id          string
 	client      *GraphClient
 	builder     *T
 	requestInfo *entityItemRequestInfo
+	id          string
 }
 
 // Creates a new EntityItemRequestBuilder

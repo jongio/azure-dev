@@ -22,21 +22,21 @@ type DevCenterListResponse struct {
 }
 
 type Project struct {
+	DevCenter      *DevCenter
 	Id             string
 	SubscriptionId string
 	ResourceGroup  string
 	Name           string
 	Description    string
-	DevCenter      *DevCenter
 }
 
 type GenericResource struct {
+	Properties map[string]any `json:"properties"`
 	Id         string         `json:"id"`
 	Location   string         `json:"location"`
 	TenantId   string         `json:"tenantId"`
 	Name       string         `json:"name"`
 	Type       string         `json:"type"`
-	Properties map[string]any `json:"properties"`
 }
 
 type ResourceId struct {
@@ -157,14 +157,14 @@ const (
 )
 
 type Parameter struct {
+	Default     any           `json:"default"`
 	Id          string        `json:"id"`
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
 	Type        ParameterType `json:"type"`
+	Allowed     []string      `json:"allowed"`
 	ReadOnly    bool          `json:"readOnly"`
 	Required    bool          `json:"required"`
-	Allowed     []string      `json:"allowed"`
-	Default     any           `json:"default"`
 }
 
 type ProvisioningState string
@@ -176,6 +176,7 @@ const (
 )
 
 type Environment struct {
+	Parameters                map[string]any    `json:"parameters"`
 	Name                      string            `json:"name"`
 	EnvironmentType           string            `json:"environmentType"`
 	User                      string            `json:"user"`
@@ -183,7 +184,6 @@ type Environment struct {
 	ResourceGroupId           string            `json:"resourceGroupId"`
 	CatalogName               string            `json:"catalogName"`
 	EnvironmentDefinitionName string            `json:"environmentDefinitionName"`
-	Parameters                map[string]any    `json:"parameters"`
 }
 
 type EnvironmentListResponse struct {
@@ -191,10 +191,10 @@ type EnvironmentListResponse struct {
 }
 
 type EnvironmentSpec struct {
+	Parameters                map[string]any `json:"parameters"`
 	CatalogName               string         `json:"catalogName"`
 	EnvironmentDefinitionName string         `json:"environmentDefinitionName"`
 	EnvironmentType           string         `json:"environmentType"`
-	Parameters                map[string]any `json:"parameters"`
 }
 
 type EnvironmentPutResponse struct {
@@ -202,11 +202,11 @@ type EnvironmentPutResponse struct {
 }
 
 type OperationStatus struct {
+	StartTime time.Time `json:"startTime"`
+	EndTime   time.Time `json:"endTime"`
 	Id        string    `json:"id"`
 	Name      string    `json:"name"`
 	Status    string    `json:"status"`
-	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
 }
 
 type OutputListResponse struct {
@@ -214,8 +214,8 @@ type OutputListResponse struct {
 }
 
 type OutputParameter struct {
-	Type      OutputParameterType `json:"type"`
 	Value     any                 `json:"value"`
+	Type      OutputParameterType `json:"type"`
 	Sensitive bool                `json:"sensitive"`
 }
 

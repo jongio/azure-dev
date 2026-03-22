@@ -11,9 +11,9 @@ import (
 )
 
 type ActionResult struct {
+	Err            error
 	SuccessMessage string
 	FollowUp       string
-	Err            error
 }
 
 func (ar *ActionResult) ToString(currentIndentation string) (result string) {

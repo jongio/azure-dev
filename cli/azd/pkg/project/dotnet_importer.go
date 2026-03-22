@@ -28,14 +28,14 @@ import (
 )
 
 type hostCheckResult struct {
-	is  bool
 	err error
+	is  bool
 }
 
 // DotNetImporter is an importer that is able to import projects and infrastructure from a manifest produced by a .NET App.
 type DotNetImporter struct {
-	dotnetCli           *dotnet.Cli
 	console             input.Console
+	dotnetCli           *dotnet.Cli
 	lazyEnv             *lazy.Lazy[*environment.Environment]
 	lazyEnvManager      *lazy.Lazy[environment.Manager]
 	alphaFeatureManager *alpha.FeatureManager
@@ -44,10 +44,11 @@ type DotNetImporter struct {
 	// operation and it is expensive to generate. We should consider if this is the correct location for the cache or if
 	// it should be in some higher level component. Right now the lifetime issues are not too large of a deal, since
 	// `azd` processes are short lived.
-	cache   map[manifestCacheKey]*apphost.Manifest
-	cacheMu sync.Mutex
+	cache map[manifestCacheKey]*apphost.Manifest
 
-	hostCheck   map[string]hostCheckResult
+	hostCheck map[string]hostCheckResult
+	cacheMu   sync.Mutex
+
 	hostCheckMu sync.Mutex
 }
 

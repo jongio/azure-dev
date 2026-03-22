@@ -20,19 +20,19 @@ type Spinner struct {
 
 	cursor         internal.Cursor
 	options        *SpinnerOptions
-	animationIndex int
-	text           string
-	clear          bool
 	cancel         context.CancelFunc
+	text           string
+	animationIndex int
+	clear          bool
 }
 
 // SpinnerOptions represents the options for the Spinner component.
 type SpinnerOptions struct {
-	Animation   []string
+	Writer      io.Writer
 	Text        string
+	Animation   []string
 	Interval    time.Duration
 	ClearOnStop bool
-	Writer      io.Writer
 }
 
 var DefaultSpinnerOptions SpinnerOptions = SpinnerOptions{

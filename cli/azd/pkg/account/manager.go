@@ -43,11 +43,11 @@ type Manager interface {
 
 // Manages azd account configuration
 type manager struct {
-	// Path to the local azd user configuration file
-	filePath      string
 	configManager config.FileConfigManager
 	config        config.Config
 	subManager    *SubscriptionsManager
+	// Path to the local azd user configuration file
+	filePath string
 }
 
 // Creates a new Account Manager instance

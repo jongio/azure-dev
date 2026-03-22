@@ -47,10 +47,10 @@ type ReleaseAsset struct {
 	Id          string `json:"id"`
 	ContentType string `json:"contentType"`
 	Name        string `json:"name"`
-	Size        int64  `json:"size"`
 	State       string `json:"state"`
 	Url         string `json:"url"`
 	Path        string `json:"path"` // Local path when downloaded
+	Size        int64  `json:"size"`
 }
 
 // NewGitHubCli creates a new GitHub CLI wrapper

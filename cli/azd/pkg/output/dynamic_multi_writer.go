@@ -10,8 +10,8 @@ import (
 
 // DynamicMultiWriter allows adding/removing writers dynamically
 type DynamicMultiWriter struct {
-	mu      sync.Mutex
 	writers []io.Writer
+	mu      sync.Mutex
 }
 
 func NewDynamicMultiWriter(writers ...io.Writer) *DynamicMultiWriter {

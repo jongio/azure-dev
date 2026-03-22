@@ -29,16 +29,16 @@ type variantAssignmentRequest struct {
 }
 
 type treatmentAssignmentResponse struct {
-	Features []string          `json:"Features"`
-	Flights  map[string]string `json:"Flights"`
-	Configs  []struct {
+	Flights           map[string]string `json:"Flights"`
+	ImpressionID      string            `json:"ImpressionId"`
+	AssignmentContext string            `json:"AssignmentContext"`
+	Features          []string          `json:"Features"`
+	Configs           []struct {
 		ID         string         `json:"Id"`
 		Parameters map[string]any `json:"Parameters"`
 	} `json:"Configs"`
-	ParameterGroups   []string `json:"ParameterGroups"`
-	FlightingVersion  int64    `json:"FlightingVersion"`
-	ImpressionID      string   `json:"ImpressionId"`
-	AssignmentContext string   `json:"AssignmentContext"`
+	ParameterGroups  []string `json:"ParameterGroups"`
+	FlightingVersion int64    `json:"FlightingVersion"`
 }
 
 // newTasClient creates a new instance of the treatment assignments client.

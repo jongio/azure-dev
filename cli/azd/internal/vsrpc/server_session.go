@@ -28,14 +28,14 @@ import (
 // This is the purpose of the session.
 // Sessions are assigned a unique ID when they are created and are stored in the sessions map.
 type serverSession struct {
-	id string
-	// rootPath is the path to the root of the solution.
-	rootPath string
 	// root container points to server.rootContainer
-	rootContainer            *ioc.NestedContainer
+	rootContainer          *ioc.NestedContainer
+	externalServicesClient *http.Client
+	id                     string
+	// rootPath is the path to the root of the solution.
+	rootPath                 string
 	externalServicesEndpoint string
 	externalServicesKey      string
-	externalServicesClient   *http.Client
 }
 
 // newSession creates a new session and returns the session ID and session. newSession is safe to call by multiple

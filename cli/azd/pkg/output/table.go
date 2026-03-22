@@ -28,9 +28,9 @@ type TableFormatterOptions struct {
 }
 
 type Column struct {
+	Transformer   func(string) string
 	Heading       string
 	ValueTemplate string
-	Transformer   func(string) string
 }
 
 type TableFormatter struct {

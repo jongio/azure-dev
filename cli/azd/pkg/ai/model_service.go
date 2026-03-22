@@ -22,8 +22,8 @@ import (
 type AiModelService struct {
 	azureClient    *azapi.AzureClient
 	subManager     *account.SubscriptionsManager
-	catalogCacheMu sync.RWMutex
 	catalogCache   map[string][]*armcognitiveservices.Model // key: "subscriptionId:location"
+	catalogCacheMu sync.RWMutex
 }
 
 // NewAiModelService creates a new AiModelService.

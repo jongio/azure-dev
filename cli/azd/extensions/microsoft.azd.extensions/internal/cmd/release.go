@@ -23,11 +23,11 @@ import (
 
 type releaseFlags struct {
 	repository string
-	artifacts  []string
 	title      string
 	notes      string
 	notesFile  string
 	version    string
+	artifacts  []string
 	preRelease bool
 	draft      bool
 	confirm    bool

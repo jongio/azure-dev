@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/azure/azure-dev/cli/azd/internal"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/async"
+	"github.com/azure/azure-dev/cli/azd/pkg/config"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
 	"github.com/azure/azure-dev/cli/azd/pkg/output"
 	"github.com/azure/azure-dev/cli/azd/pkg/project"
@@ -424,13 +426,14 @@ func newDeployTimeoutAction(t *testing.T, flagTimeout *int) *DeployAction {
 	env.SetSubscriptionId("subscription-id")
 
 	return &DeployAction{
-		flags:         flags,
-		projectConfig: projectConfig,
-		env:           env,
-		importManager: project.NewImportManager(nil),
-		console:       mockinput.NewMockConsole(),
-		formatter:     &output.NoneFormatter{},
-		writer:        io.Discard,
+		flags:               flags,
+		projectConfig:       projectConfig,
+		env:                 env,
+		importManager:       project.NewImportManager(nil),
+		console:             mockinput.NewMockConsole(),
+		formatter:           &output.NoneFormatter{},
+		writer:              io.Discard,
+		alphaFeatureManager: alpha.NewFeaturesManagerWithConfig(config.NewEmptyConfig()),
 	}
 }
 

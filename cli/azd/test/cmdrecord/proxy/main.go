@@ -35,9 +35,8 @@ var errSignalTerm = errors.New("terminated by signal")
 var errInteractionNotFound = errors.New("interaction not found")
 
 type App struct {
-	config cmdrecord.Options
-
 	execDir string
+	config  cmdrecord.Options
 }
 
 func (a *App) Handle() error {

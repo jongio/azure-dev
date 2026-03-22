@@ -93,18 +93,19 @@ type Manager interface {
 }
 
 type manager struct {
-	local      DataStore
-	remote     DataStore
-	azdContext *azdcontext.AzdContext
-	console    input.Console
+	local   DataStore
+	remote  DataStore
+	console input.Console
 
-	// Instance cache to ensure the same environment name returns the same *Environment instance
-	// across different scopes, enabling shared state mutation (e.g., from extensions)
-	cacheMu  sync.RWMutex
-	envCache map[string]*Environment
+	azdContext *azdcontext.AzdContext
+	envCache   map[string]*Environment
 
 	// State cache manager for managing cached Azure resource information
 	stateCacheManager *state.StateCacheManager
+
+	// Instance cache to ensure the same environment name returns the same *Environment instance
+	// across different scopes, enabling shared state mutation (e.g., from extensions)
+	cacheMu sync.RWMutex
 }
 
 // NewManager creates a new Manager instance

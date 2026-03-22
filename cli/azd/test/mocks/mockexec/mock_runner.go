@@ -18,8 +18,8 @@ type ResponseFn func(args exec.RunArgs) (exec.RunResult, error)
 
 // MockCommandRunner is used to register and implement mock calls and responses out to dependent CLI applications
 type MockCommandRunner struct {
-	expressions     []*CommandExpression
 	toolInPathMocks map[string]error
+	expressions     []*CommandExpression
 }
 
 // Creates a new instance of a mock exec
@@ -112,12 +112,12 @@ func (m *MockCommandRunner) When(predicate CommandWhenPredicate) *CommandExpress
 
 // Represents an mocked expression against a dependent tool command
 type CommandExpression struct {
-	response   exec.RunResult
+	error      error
 	responseFn ResponseFn
 
-	error       error
 	exec        *MockCommandRunner
 	predicateFn CommandWhenPredicate
+	response    exec.RunResult
 }
 
 // Sets the response that will be returned for the current expression

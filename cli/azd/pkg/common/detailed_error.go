@@ -6,8 +6,8 @@ package common
 import "fmt"
 
 type DetailedError struct {
-	description string
 	err         error
+	description string
 }
 
 func (e *DetailedError) Error() string {

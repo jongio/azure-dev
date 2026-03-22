@@ -19,9 +19,9 @@ type HandlerResolver func(name string) (ErrorHandler, error)
 // ErrorHandlerPipeline evaluates error suggestion rules from YAML
 // and optionally invokes named ErrorHandlers for dynamic suggestions.
 type ErrorHandlerPipeline struct {
-	rules           []ErrorSuggestionRule
 	matcher         *PatternMatcher
 	handlerResolver HandlerResolver
+	rules           []ErrorSuggestionRule
 }
 
 var (

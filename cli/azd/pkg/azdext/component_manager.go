@@ -21,9 +21,9 @@ type FactoryKeyProvider func(*ServiceConfig) string
 type ComponentManager[T Provider] struct {
 	factories       map[string]ProviderFactory[T] // factoryKey -> factory
 	instances       map[string]T                  // serviceName -> instance
-	mutex           sync.RWMutex
 	factoryKeyFunc  FactoryKeyProvider
 	managerTypeName string // for error messages
+	mutex           sync.RWMutex
 }
 
 // NewComponentManager creates a new ComponentManager with the specified factory key function

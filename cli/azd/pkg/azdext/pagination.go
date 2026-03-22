@@ -49,22 +49,22 @@ const (
 //	}
 type Pager[T any] struct {
 	client     HTTPDoer
-	nextURL    string
-	done       bool
 	initErr    error
-	opts       PagerOptions
+	nextURL    string
 	originHost string // host of the initial URL for SSRF protection
-	pageCount  int    // number of pages fetched so far
+	opts       PagerOptions
+	pageCount  int // number of pages fetched so far
+	done       bool
 	truncated  bool
 }
 
 // PageResponse is a single page returned by [Pager.NextPage].
 type PageResponse[T any] struct {
-	// Value contains the items for this page.
-	Value []T `json:"value"`
 
 	// NextLink is the URL to the next page, or empty if this is the last page.
 	NextLink string `json:"nextLink,omitempty"`
+	// Value contains the items for this page.
+	Value []T `json:"value"`
 }
 
 // PagerOptions configures a [Pager].
@@ -313,12 +313,12 @@ const maxPaginationErrorBodyLen = 1024
 
 // PaginationError is returned when a page request receives a non-2xx response.
 type PaginationError struct {
-	StatusCode int
-	URL        string
+	URL string
 	// Body is a truncated, sanitized excerpt of the error response body for
 	// diagnostics. It is capped at [maxPaginationErrorBodyLen] bytes and
 	// stripped of control characters to prevent log forging.
-	Body string
+	Body       string
+	StatusCode int
 }
 
 func (e *PaginationError) Error() string {

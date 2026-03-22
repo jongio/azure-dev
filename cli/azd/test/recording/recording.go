@@ -33,8 +33,8 @@ import (
 )
 
 type recordOptions struct {
-	mode        recorder.Mode
 	hostMapping map[string]string
+	mode        recorder.Mode
 }
 
 type Options interface {
@@ -81,6 +81,12 @@ const TimeKey = "time"
 const SubscriptionIdKey = "subscription_id"
 
 type Session struct {
+
+	// Variables stored in the session.
+	Variables map[string]string
+
+	// A http.Client that is configured to communicate through the proxy server.
+	ProxyClient *http.Client
 	// ProxyUrl is the URL of the proxy server that will be recording or replaying interactions.
 	ProxyUrl string
 
@@ -89,12 +95,6 @@ type Session struct {
 
 	// If true, playing back from recording.
 	Playback bool
-
-	// Variables stored in the session.
-	Variables map[string]string
-
-	// A http.Client that is configured to communicate through the proxy server.
-	ProxyClient *http.Client
 }
 
 const roleAssignmentsPath = "providers/Microsoft.Authorization/roleAssignments/"

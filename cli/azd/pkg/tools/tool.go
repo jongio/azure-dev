@@ -25,8 +25,8 @@ type ErrSemver struct {
 }
 
 type VersionInfo struct {
-	MinimumVersion semver.Version
 	UpdateCommand  string
+	MinimumVersion semver.Version
 }
 
 func (err *ErrSemver) Error() string {

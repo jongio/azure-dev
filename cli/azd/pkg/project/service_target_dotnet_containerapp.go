@@ -821,8 +821,8 @@ func deploymentHost(deploymentResult *azapi.ResourceDeployment) (appDeploymentHo
 // armDeployment represents the compiled ARM template and parameters
 // that is ready to be deployed.
 type armDeployment struct {
-	Template   azure.RawArmTemplate
 	Parameters azure.ArmParameters
+	Template   azure.RawArmTemplate
 }
 
 // compileBicep compiles the specified Bicep module to an ARM template and parameters.

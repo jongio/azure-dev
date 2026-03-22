@@ -21,14 +21,14 @@ type InputConstraints struct {
 
 // MissingInput represents a missing required input for infrastructure provisioning.
 type MissingInput struct {
+	Constraints   *InputConstraints `json:"constraints,omitempty"`
 	Name          string            `json:"name"`
 	Type          string            `json:"type"`
-	Secure        bool              `json:"secure"`
 	Description   string            `json:"description,omitempty"`
-	EnvVarNames   []string          `json:"envVarNames,omitempty"`
 	ConfigKey     string            `json:"configKey,omitempty"`
+	EnvVarNames   []string          `json:"envVarNames,omitempty"`
 	AllowedValues []string          `json:"allowedValues,omitempty"`
-	Constraints   *InputConstraints `json:"constraints,omitempty"`
+	Secure        bool              `json:"secure"`
 }
 
 // MissingInputsError is an error that contains information about all missing required inputs.

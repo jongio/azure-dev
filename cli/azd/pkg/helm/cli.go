@@ -147,10 +147,10 @@ func (cli *Cli) getClientVersion(ctx context.Context) (string, error) {
 
 // StatusResult is the result of a helm status command
 type StatusResult struct {
-	Name      string     `json:"name"`
 	Info      StatusInfo `json:"info"`
-	Version   float64    `json:"version"`
+	Name      string     `json:"name"`
 	Namespace string     `json:"namespace"`
+	Version   float64    `json:"version"`
 }
 
 // StatusInfo is the status information of a helm release

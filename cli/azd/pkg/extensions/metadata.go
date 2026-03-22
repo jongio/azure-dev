@@ -9,26 +9,28 @@ import (
 
 // ExtensionCommandMetadata represents the complete metadata for an extension including commands and configuration
 type ExtensionCommandMetadata struct {
+	// Configuration describes extension configuration options (Phase 2)
+	Configuration *ConfigurationMetadata `json:"configuration,omitempty"`
 	// SchemaVersion is the version of the metadata schema (e.g., "1.0")
 	SchemaVersion string `json:"schemaVersion"`
 	// ID is the extension identifier matching extension.yaml
 	ID string `json:"id"`
 	// Commands is the list of root-level commands provided by the extension
 	Commands []Command `json:"commands"`
-	// Configuration describes extension configuration options (Phase 2)
-	Configuration *ConfigurationMetadata `json:"configuration,omitempty"`
 }
 
 // Command represents a command or subcommand in the extension's command tree
 type Command struct {
-	// Name is the command path as an array of strings (e.g., ["demo", "context"])
-	Name []string `json:"name"`
 	// Short is a brief one-line description of the command
 	Short string `json:"short"`
 	// Long is an optional detailed multi-line description (markdown supported)
 	Long string `json:"long,omitempty"`
 	// Usage is an optional usage template string
 	Usage string `json:"usage,omitempty"`
+	// Deprecated contains a deprecation notice if the command is deprecated
+	Deprecated string `json:"deprecated,omitempty"`
+	// Name is the command path as an array of strings (e.g., ["demo", "context"])
+	Name []string `json:"name"`
 	// Examples contains example usages of the command
 	Examples []CommandExample `json:"examples,omitempty"`
 	// Args defines the positional arguments accepted by the command, in the order it is received
@@ -37,12 +39,10 @@ type Command struct {
 	Flags []Flag `json:"flags,omitempty"`
 	// Subcommands contains nested subcommands
 	Subcommands []Command `json:"subcommands,omitempty"`
-	// Hidden indicates if the command should be hidden from help output
-	Hidden bool `json:"hidden,omitempty"`
 	// Aliases contains alternative names for the command
 	Aliases []string `json:"aliases,omitempty"`
-	// Deprecated contains a deprecation notice if the command is deprecated
-	Deprecated string `json:"deprecated,omitempty"`
+	// Hidden indicates if the command should be hidden from help output
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // CommandExample represents an example usage of a command
@@ -59,16 +59,18 @@ type Argument struct {
 	Name string `json:"name"`
 	// Description explains the purpose of the argument
 	Description string `json:"description"`
+	// ValidValues contains the allowed values for the argument
+	ValidValues []string `json:"validValues,omitempty"`
 	// Required indicates if the argument is required
 	Required bool `json:"required"`
 	// Variadic indicates if the argument accepts multiple values
 	Variadic bool `json:"variadic,omitempty"`
-	// ValidValues contains the allowed values for the argument
-	ValidValues []string `json:"validValues,omitempty"`
 }
 
 // Flag represents a command-line flag/option
 type Flag struct {
+	// Default is the default value when the flag is not provided
+	Default any `json:"default,omitempty"`
 	// Name is the flag name without dashes
 	Name string `json:"name"`
 	// Shorthand is the optional single character shorthand (without dash)
@@ -77,16 +79,14 @@ type Flag struct {
 	Description string `json:"description"`
 	// Type is the data type: "string", "bool", "int", "stringArray", "intArray"
 	Type string `json:"type"`
-	// Default is the default value when the flag is not provided
-	Default any `json:"default,omitempty"`
-	// Required indicates if the flag is required
-	Required bool `json:"required,omitempty"`
-	// ValidValues contains the allowed values for the flag
-	ValidValues []string `json:"validValues,omitempty"`
-	// Hidden indicates if the flag should be hidden from help output
-	Hidden bool `json:"hidden,omitempty"`
 	// Deprecated contains a deprecation notice if the flag is deprecated
 	Deprecated string `json:"deprecated,omitempty"`
+	// ValidValues contains the allowed values for the flag
+	ValidValues []string `json:"validValues,omitempty"`
+	// Required indicates if the flag is required
+	Required bool `json:"required,omitempty"`
+	// Hidden indicates if the flag should be hidden from help output
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // EnvironmentVariable represents an environment variable used or recognized by the extension

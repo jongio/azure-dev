@@ -47,11 +47,12 @@ type FrameworkServiceProvider interface {
 
 // FrameworkServiceManager handles registration and request forwarding for a framework service provider.
 type FrameworkServiceManager struct {
-	extensionId      string
 	client           *AzdClient
 	broker           *grpcbroker.MessageBroker[FrameworkServiceMessage]
 	componentManager *ComponentManager[FrameworkServiceProvider]
 	brokerLogger     *log.Logger
+
+	extensionId string
 
 	// Synchronization for concurrent access
 	mu sync.RWMutex

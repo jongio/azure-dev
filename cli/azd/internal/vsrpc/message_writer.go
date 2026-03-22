@@ -31,12 +31,12 @@ func (mw *messageWriter) Write(p []byte) (int, error) {
 type lineWriter struct {
 	// The next writer to write to.
 	next io.Writer
-	// If true, trim line endings from the written lines.
-	trimLineEndings bool
 
 	buf bytes.Buffer
 	// bufMu protects access to buf.
 	bufMu sync.Mutex
+	// If true, trim line endings from the written lines.
+	trimLineEndings bool
 }
 
 func (lw *lineWriter) Write(p []byte) (int, error) {

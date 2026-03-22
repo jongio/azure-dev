@@ -133,14 +133,11 @@ func (db DatabaseDep) Display() string {
 }
 
 type Project struct {
+
+	// If true, the project uses Docker for packaging. This is inferred through the presence of a Dockerfile.
+	Docker *Docker
 	// The language associated with the project.
 	Language Language
-
-	// Dependencies scanned in the project.
-	Dependencies []Dependency
-
-	// Experimental: Database dependencies inferred through heuristics while scanning dependencies in the project.
-	DatabaseDeps []DatabaseDep
 
 	// The root/workspace directory for languages that support multiple projects.
 	// This may be used for example, to configure the correct context of the build for multiple projects.
@@ -152,8 +149,11 @@ type Project struct {
 	// A short description of the detection rule applied.
 	DetectionRule string
 
-	// If true, the project uses Docker for packaging. This is inferred through the presence of a Dockerfile.
-	Docker *Docker
+	// Dependencies scanned in the project.
+	Dependencies []Dependency
+
+	// Experimental: Database dependencies inferred through heuristics while scanning dependencies in the project.
+	DatabaseDeps []DatabaseDep
 }
 
 func (p *Project) HasWebUIFramework() bool {
@@ -167,8 +167,8 @@ func (p *Project) HasWebUIFramework() bool {
 }
 
 type Port struct {
-	Number   int
 	Protocol string
+	Number   int
 }
 
 type Docker struct {

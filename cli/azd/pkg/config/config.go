@@ -68,9 +68,9 @@ func NewConfig(data map[string]any) Config {
 
 // Top level AZD configuration
 type config struct {
-	vaultId string
 	vault   Config
 	data    map[string]any
+	vaultId string
 }
 
 // Returns a value indicating whether the configuration is empty

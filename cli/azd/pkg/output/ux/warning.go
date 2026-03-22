@@ -14,9 +14,9 @@ import (
 // Warning message with hidable prefix "WARNING: "
 type WarningMessage struct {
 	Description string
-	HidePrefix  bool
 	// Hints are optional additional lines displayed as bullets below the warning
-	Hints []string
+	Hints      []string
+	HidePrefix bool
 }
 
 func (t *WarningMessage) ToString(currentIndentation string) string {

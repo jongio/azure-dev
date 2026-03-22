@@ -15,8 +15,8 @@ type ErrorWithSuggestion = errorhandler.ErrorWithSuggestion
 
 // ErrorWithTraceId is a custom error type that includes a trace ID for the current operation
 type ErrorWithTraceId struct {
-	TraceId string
 	Err     error
+	TraceId string
 }
 
 // Error returns the error message

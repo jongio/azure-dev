@@ -42,6 +42,19 @@ const emptySubscriptionArmTemplate = `{
   }`
 
 type ResourceDeployment struct {
+
+	// The timestamp of the template deployment.
+	Timestamp time.Time
+
+	// The outputs from the deployment
+	Outputs any
+
+	// The tags associated with the deployment
+	Tags map[string]*string
+
+	// The hash produced for the template.
+	TemplateHash *string
+
 	// The Azure resource id of the deployment operation
 	Id string
 
@@ -57,24 +70,6 @@ type ResourceDeployment struct {
 	// The deployment type
 	Type string
 
-	// The tags associated with the deployment
-	Tags map[string]*string
-
-	// The outputs from the deployment
-	Outputs any
-
-	// The hash produced for the template.
-	TemplateHash *string
-
-	// The timestamp of the template deployment.
-	Timestamp time.Time
-
-	// The resources created from the deployment
-	Resources []*armresources.ResourceReference
-
-	// The dependencies of the deployment
-	Dependencies []*armresources.Dependency
-
 	// The status of the deployment
 	ProvisioningState DeploymentProvisioningState
 
@@ -83,6 +78,12 @@ type ResourceDeployment struct {
 	OutputsUrl string
 
 	DeploymentUrl string
+
+	// The resources created from the deployment
+	Resources []*armresources.ResourceReference
+
+	// The dependencies of the deployment
+	Dependencies []*armresources.Dependency
 }
 
 type DeploymentProvisioningState string
@@ -260,30 +261,30 @@ type AzCliDeploymentPropertiesBasicDependency struct {
 }
 
 type AzCliDeploymentErrorResponse struct {
+	AdditionalInfo AzCliDeploymentAdditionalInfo  `json:"additionalInfo"`
 	Code           string                         `json:"code"`
 	Message        string                         `json:"message"`
 	Target         string                         `json:"target"`
 	Details        []AzCliDeploymentErrorResponse `json:"details"`
-	AdditionalInfo AzCliDeploymentAdditionalInfo  `json:"additionalInfo"`
 }
 
 type AzCliDeploymentAdditionalInfo struct {
-	Type string `json:"type"`
 	Info any    `json:"info"`
+	Type string `json:"type"`
 }
 
 type AzCliDeployment struct {
+	Properties AzCliDeploymentProperties `json:"properties"`
 	Id         string                    `json:"id"`
 	Name       string                    `json:"name"`
-	Properties AzCliDeploymentProperties `json:"properties"`
 }
 
 type AzCliDeploymentProperties struct {
-	CorrelationId   string                                `json:"correlationId"`
 	Error           AzCliDeploymentErrorResponse          `json:"error"`
+	Outputs         map[string]AzCliDeploymentOutput      `json:"outputs"`
+	CorrelationId   string                                `json:"correlationId"`
 	Dependencies    []AzCliDeploymentPropertiesDependency `json:"dependencies"`
 	OutputResources []AzCliDeploymentResourceReference    `json:"outputResources"`
-	Outputs         map[string]AzCliDeploymentOutput      `json:"outputs"`
 }
 
 type AzCliDeploymentResourceReference struct {
@@ -291,8 +292,8 @@ type AzCliDeploymentResourceReference struct {
 }
 
 type AzCliDeploymentOutput struct {
-	Type  string `json:"type"`
 	Value any    `json:"value"`
+	Type  string `json:"type"`
 }
 
 func (o AzCliDeploymentOutput) Secured() bool {
@@ -308,20 +309,20 @@ type AzCliDeploymentResultProperties struct {
 }
 
 type AzCliResourceOperation struct {
+	Properties  AzCliResourceOperationProperties `json:"properties"`
 	Id          string                           `json:"id"`
 	OperationId string                           `json:"operationId"`
-	Properties  AzCliResourceOperationProperties `json:"properties"`
 }
 
 type AzCliResourceOperationProperties struct {
-	ProvisioningOperation string                               `json:"provisioningOperation"`
-	ProvisioningState     string                               `json:"provisioningState"`
-	TargetResource        AzCliResourceOperationTargetResource `json:"targetResource"`
-	StatusCode            string                               `json:"statusCode"`
-	StatusMessage         AzCliDeploymentStatusMessage         `json:"statusMessage"`
 	// While the operation is in progress, this timestamp effectively represents "InProgressTimestamp".
 	// When the operation ends, this timestamp effectively represents "EndTimestamp".
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp             time.Time                            `json:"timestamp"`
+	StatusMessage         AzCliDeploymentStatusMessage         `json:"statusMessage"`
+	TargetResource        AzCliResourceOperationTargetResource `json:"targetResource"`
+	ProvisioningOperation string                               `json:"provisioningOperation"`
+	ProvisioningState     string                               `json:"provisioningState"`
+	StatusCode            string                               `json:"statusCode"`
 }
 
 type AzCliResourceOperationTargetResource struct {

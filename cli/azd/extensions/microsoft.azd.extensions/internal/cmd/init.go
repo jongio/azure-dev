@@ -29,13 +29,13 @@ import (
 )
 
 type initFlags struct {
-	createRegistry bool
-	noPrompt       bool
 	id             string
 	name           string
-	capabilities   []string
 	language       string
 	namespace      string
+	capabilities   []string
+	createRegistry bool
+	noPrompt       bool
 }
 
 func newInitCommand() *cobra.Command {

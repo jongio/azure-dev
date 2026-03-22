@@ -66,10 +66,10 @@ type blobClient struct {
 
 // Blob represents a blob within a storage account container.
 type Blob struct {
-	Name         string
-	Path         string
 	CreationTime time.Time
 	LastModified time.Time
+	Name         string
+	Path         string
 }
 
 // Items returns a list of blobs in the configured storage account container.

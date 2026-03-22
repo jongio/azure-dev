@@ -41,8 +41,8 @@ const (
 // VersionInfo holds the result of a version check.
 type VersionInfo struct {
 	Version     string
-	BuildNumber int
 	Channel     Channel
+	BuildNumber int
 	HasUpdate   bool
 }
 
@@ -963,9 +963,9 @@ func PackageManagerUninstallCmd(installedBy installer.InstallType) string {
 // progressReader wraps an io.Reader to report download progress.
 type progressReader struct {
 	reader  io.Reader
+	writer  io.Writer
 	total   int64
 	current int64
-	writer  io.Writer
 	lastPct int
 }
 

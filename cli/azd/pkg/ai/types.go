@@ -36,10 +36,10 @@ type AiModel struct {
 type AiModelVersion struct {
 	// Version is the version string, e.g. "2024-05-13".
 	Version string
-	// IsDefault indicates whether this is the default version.
-	IsDefault bool
 	// Skus lists the available SKUs for this version.
 	Skus []AiModelSku
+	// IsDefault indicates whether this is the default version.
+	IsDefault bool
 }
 
 // AiModelSku represents a deployment SKU with its capacity constraints.
@@ -68,6 +68,9 @@ type AiModelSku struct {
 //
 // Constraint: Capacity must be <= RemainingQuota for the deployment to succeed.
 type AiModelDeployment struct {
+	// RemainingQuota is the subscription quota remaining at this location for this SKU.
+	// Only populated when a quota check is performed. nil means no quota check was done.
+	RemainingQuota *float64
 	// ModelName is the model name, e.g. "gpt-4o".
 	ModelName string
 	// Format is the model format, e.g. "OpenAI".
@@ -81,9 +84,6 @@ type AiModelDeployment struct {
 	// Capacity is the resolved deployment capacity in units.
 	// Resolved from: DeploymentOptions.Capacity → Sku.DefaultCapacity → 0 (caller must handle).
 	Capacity int32
-	// RemainingQuota is the subscription quota remaining at this location for this SKU.
-	// Only populated when a quota check is performed. nil means no quota check was done.
-	RemainingQuota *float64
 }
 
 // AiModelUsage represents a subscription-level quota/usage entry for a specific
@@ -141,15 +141,15 @@ type FilterOptions struct {
 // DeploymentOptions specifies preferences for resolving a model deployment.
 // All fields are optional filters. When empty, no filtering is applied for that dimension.
 type DeploymentOptions struct {
+	// Capacity is the preferred deployment capacity. If set and valid
+	// (within min/max, aligned to step), used directly. If nil, uses SKU default.
+	Capacity *int32
 	// Locations lists preferred locations. If empty, location is left unset on results.
 	Locations []string
 	// Versions lists preferred versions. If empty, all versions are included.
 	Versions []string
 	// Skus lists preferred SKU names, e.g. ["GlobalStandard", "Standard"]. If empty, all SKUs are included.
 	Skus []string
-	// Capacity is the preferred deployment capacity. If set and valid
-	// (within min/max, aligned to step), used directly. If nil, uses SKU default.
-	Capacity *int32
 	// IncludeFinetuneSkus controls whether fine-tune SKUs (usage names ending with
 	// "-finetune") are included. Defaults to false (excluded).
 	IncludeFinetuneSkus bool

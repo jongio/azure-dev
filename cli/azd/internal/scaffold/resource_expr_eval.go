@@ -21,14 +21,14 @@ type EvalEnv struct {
 	// ResourceSpec is the azure.yaml resource spec.
 	ResourceSpec *yaml.Node
 
-	// ArmResource is the Azure resource representation.
-	ArmResource string
-
 	// VaultSecret is a function that resolves a secret from the vault.
 	VaultSecret func(string) (string, error)
 
 	// FuncMap is a map of function names to their implementations.
 	FuncMap FuncMap
+
+	// ArmResource is the Azure resource representation.
+	ArmResource string
 }
 
 // FuncMap is the type of the map defining the mapping from names to functions.
@@ -286,11 +286,11 @@ type ExpressionVar struct {
 	// The Expressions parsed from the value. Can be nil if the value does not contain any Expressions.
 	Expressions []*Expression
 
-	// done indicates whether the expression has been resolved.
-	done bool
-
 	// Variables that this variable depends on.
 	dependsOn []string
+
+	// done indicates whether the expression has been resolved.
+	done bool
 }
 
 func nextVal(evalCtx []*ExpressionVar, results map[string]string) (*ExpressionVar, error) {

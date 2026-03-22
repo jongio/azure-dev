@@ -18,9 +18,9 @@ const (
 )
 
 type Resource struct {
+	Metadata   ResourceMetadata `json:"metadata"   yaml:"metadata"`
 	ApiVersion string           `json:"apiVersion" yaml:"apiVersion"`
 	Kind       string           `json:"kind"       yaml:"kind"`
-	Metadata   ResourceMetadata `json:"metadata"   yaml:"metadata"`
 }
 
 type List[T any] struct {
@@ -35,9 +35,9 @@ type ResourceWithSpec[T any, S any] struct {
 }
 
 type ResourceMetadata struct {
+	Annotations map[string]any
 	Name        string `json:"name"      yaml:"name"`
 	Namespace   string `json:"namespace" yaml:"namespace"`
-	Annotations map[string]any
 }
 
 type Deployment ResourceWithSpec[DeploymentSpec, DeploymentStatus]
@@ -62,8 +62,8 @@ type IngressSpec struct {
 }
 
 type IngressTls struct {
-	Hosts      []string `json:"hosts"      yaml:"hosts"`
 	SecretName string   `json:"secretName" yaml:"secretName"`
+	Hosts      []string `json:"hosts"      yaml:"hosts"`
 }
 
 type IngressRule struct {
@@ -115,10 +115,10 @@ type ServiceStatus struct {
 }
 
 type Port struct {
-	Port int `json:"port"`
 	// The target port can be a valid port number or well known service name like 'redis'
 	TargetPort any    `json:"targetPort" yaml:"targetPort"`
 	Protocol   string `json:"protocol"   yaml:"protocol"`
+	Port       int    `json:"port"`
 }
 
 func (p *Port) UnmarshalJSON(data []byte) error {
@@ -145,13 +145,13 @@ func (p *Port) UnmarshalJSON(data []byte) error {
 }
 
 type KubeConfig struct {
+	Preferences    KubePreferences `yaml:"preferences"`
 	ApiVersion     string          `yaml:"apiVersion"`
+	Kind           string          `yaml:"kind"`
+	CurrentContext string          `yaml:"current-context"`
 	Clusters       []*KubeCluster  `yaml:"clusters"`
 	Contexts       []*KubeContext  `yaml:"contexts"`
 	Users          []*KubeUser     `yaml:"users"`
-	Kind           string          `yaml:"kind"`
-	CurrentContext string          `yaml:"current-context"`
-	Preferences    KubePreferences `yaml:"preferences"`
 }
 
 type KubeCluster struct {
@@ -176,8 +176,8 @@ type KubeContextData struct {
 }
 
 type KubeUser struct {
-	Name         string       `yaml:"name"`
 	KubeUserData KubeUserData `yaml:"user"`
+	Name         string       `yaml:"name"`
 }
 
 type KubeUserData map[string]any

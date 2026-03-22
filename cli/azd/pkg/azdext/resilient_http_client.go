@@ -58,6 +58,18 @@ var _ HTTPDoer = (*ResilientClient)(nil)
 
 // ResilientClientOptions configures a [ResilientClient].
 type ResilientClientOptions struct {
+
+	// Transport overrides the default HTTP transport. Useful for testing.
+	Transport http.RoundTripper
+
+	// ScopeDetector overrides the default scope detector used for automatic
+	// scope resolution. When nil, a default detector is created.
+	ScopeDetector *ScopeDetector
+
+	// UserAgent overrides the default User-Agent header.
+	// When empty, defaults to "azdext-resilient-client/<Version>".
+	UserAgent string
+
 	// MaxRetries is the maximum number of retry attempts for transient failures.
 	// A value of 0 disables retries.
 	// A negative value uses the default (3).
@@ -74,17 +86,6 @@ type ResilientClientOptions struct {
 	// Timeout is the per-request timeout.
 	// A value of zero or less uses the default of 30s.
 	Timeout time.Duration
-
-	// UserAgent overrides the default User-Agent header.
-	// When empty, defaults to "azdext-resilient-client/<Version>".
-	UserAgent string
-
-	// Transport overrides the default HTTP transport. Useful for testing.
-	Transport http.RoundTripper
-
-	// ScopeDetector overrides the default scope detector used for automatic
-	// scope resolution. When nil, a default detector is created.
-	ScopeDetector *ScopeDetector
 }
 
 // defaults fills zero-value fields with production defaults.
@@ -323,8 +324,8 @@ func isRetryable(statusCode int) bool {
 
 // RetryableHTTPError represents a retryable HTTP failure.
 type RetryableHTTPError struct {
-	StatusCode int
 	Status     string
+	StatusCode int
 }
 
 func (e *RetryableHTTPError) Error() string {

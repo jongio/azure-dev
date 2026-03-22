@@ -223,8 +223,8 @@ func (m *SubscriptionsManager) GetSubscription(ctx context.Context, subscription
 }
 
 type tenantSubsResult struct {
-	subs []Subscription
 	err  error
+	subs []Subscription
 }
 
 // ListSubscription lists subscriptions accessible by the current account by calling azure management services.
@@ -288,7 +288,7 @@ func (m *SubscriptionsManager) ListSubscriptions(ctx context.Context) ([]Subscri
 				}
 			}
 
-			results <- tenantSubsResult{toSubscriptions(azSubs, *tenant.TenantID), err}
+			results <- tenantSubsResult{err: err, subs: toSubscriptions(azSubs, *tenant.TenantID)}
 		}
 	}
 

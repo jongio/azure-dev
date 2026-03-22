@@ -24,11 +24,11 @@ type RawArmTemplate = json.RawMessage
 // at https://learn.microsoft.com/azure/azure-resource-manager/templates/syntax, but only exposes portions of the
 // object that azd cares about.
 type ArmTemplate struct {
-	Schema         string                          `json:"$schema"`
-	ContentVersion string                          `json:"contentVersion"`
 	Parameters     ArmTemplateParameterDefinitions `json:"parameters"`
 	Outputs        ArmTemplateOutputs              `json:"outputs"`
 	Definitions    ArmTemplateParameterDefinitions `json:"definitions"`
+	Schema         string                          `json:"$schema"`
+	ContentVersion string                          `json:"contentVersion"`
 }
 
 // TargetScope uses the $schema property of the template to determine what scope this template should be deployed
@@ -58,12 +58,12 @@ type ArmTemplateParameterDefinitions map[string]ArmTemplateParameterDefinition
 type ArmTemplateOutputs map[string]ArmTemplateOutput
 
 type ArmTemplateParameterAdditionalPropertiesProperties struct {
-	Type      string                     `json:"type"`
 	MinValue  *int                       `json:"minValue,omitempty"`
 	MaxValue  *int                       `json:"maxValue,omitempty"`
 	MinLength *int                       `json:"minLength,omitempty"`
 	MaxLength *int                       `json:"maxLength,omitempty"`
 	Metadata  map[string]json.RawMessage `json:"metadata"`
+	Type      string                     `json:"type"`
 }
 
 type ArmTemplateParameterAdditionalPropertiesValue struct {
@@ -101,7 +101,6 @@ func (v *ArmTemplateParameterAdditionalPropertiesValue) MarshalJSON() ([]byte, e
 }
 
 type ArmTemplateParameterDefinition struct {
-	Type                 string                                         `json:"type"`
 	DefaultValue         any                                            `json:"defaultValue"`
 	AllowedValues        *[]any                                         `json:"allowedValues,omitempty"`
 	MinValue             *int                                           `json:"minValue,omitempty"`
@@ -109,10 +108,11 @@ type ArmTemplateParameterDefinition struct {
 	MinLength            *int                                           `json:"minLength,omitempty"`
 	MaxLength            *int                                           `json:"maxLength,omitempty"`
 	Metadata             map[string]json.RawMessage                     `json:"metadata"`
-	Ref                  string                                         `json:"$ref"`
 	Properties           ArmTemplateParameterDefinitions                `json:"properties,omitempty"`
 	AdditionalProperties *ArmTemplateParameterAdditionalPropertiesValue `json:"additionalProperties,omitempty"`
 	Nullable             *bool                                          `json:"nullable,omitempty"`
+	Type                 string                                         `json:"type"`
+	Ref                  string                                         `json:"$ref"`
 }
 
 func (d *ArmTemplateParameterDefinition) Secure() bool {
@@ -125,7 +125,6 @@ func IsSecuredARMType(t string) bool {
 }
 
 type AutoGenInput struct {
-	Length     uint  `json:"length,omitempty"`
 	NoLower    *bool `json:"noLower,omitempty"`
 	NoUpper    *bool `json:"noUpper,omitempty"`
 	NoNumeric  *bool `json:"noNumeric,omitempty"`
@@ -134,6 +133,7 @@ type AutoGenInput struct {
 	MinUpper   *uint `json:"minUpper,omitempty"`
 	MinNumeric *uint `json:"minNumeric,omitempty"`
 	MinSpecial *uint `json:"minSpecial,omitempty"`
+	Length     uint  `json:"length,omitempty"`
 }
 
 type AzdMetadataType string

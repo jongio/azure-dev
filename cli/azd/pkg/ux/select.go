@@ -27,20 +27,20 @@ type SelectOptions struct {
 	Reader io.Reader
 	// The default value to use for the prompt (default: nil)
 	SelectedIndex *int
-	// The message to display before the prompt
-	Message string
-	// The available options to display
-	Choices []*SelectChoice
-	// The optional message to display when the user types ? (default: "")
-	HelpMessage string
-	// The optional hint text that display after the message (default: "[Type ? for hint]")
-	Hint string
-	// The maximum number of options to display at one time (default: 6)
-	DisplayCount int
 	// Whether or not to display the number prefix before each option (default: false)
 	DisplayNumbers *bool
 	// Whether or not to disable filtering (default: true)
 	EnableFiltering *bool
+	// The message to display before the prompt
+	Message string
+	// The optional message to display when the user types ? (default: "")
+	HelpMessage string
+	// The optional hint text that display after the message (default: "[Type ? for hint]")
+	Hint string
+	// The available options to display
+	Choices []*SelectChoice
+	// The maximum number of options to display at one time (default: 6)
+	DisplayCount int
 }
 
 type SelectChoice struct {
@@ -49,8 +49,8 @@ type SelectChoice struct {
 }
 
 type indexedSelectChoice struct {
-	Index int
 	*SelectChoice
+	Index int
 }
 
 var DefaultSelectOptions SelectOptions = SelectOptions{
@@ -64,22 +64,23 @@ var DefaultSelectOptions SelectOptions = SelectOptions{
 
 // Select is a component for prompting the user to select an option from a list.
 type Select struct {
-	input  *internal.Input
 	cursor internal.Cursor
 	canvas Canvas
 
+	input *internal.Input
+
 	options            *SelectOptions
 	currentIndex       *int
-	showHelp           bool
-	complete           bool
+	selectedChoice     *indexedSelectChoice
+	cursorPosition     *CursorPosition
 	filter             string
+	validationMessage  string
 	choices            []*indexedSelectChoice
 	filteredChoices    []*indexedSelectChoice
-	selectedChoice     *indexedSelectChoice
+	showHelp           bool
+	complete           bool
 	hasValidationError bool
-	validationMessage  string
 	cancelled          bool
-	cursorPosition     *CursorPosition
 }
 
 // NewSelect creates a new Select instance.

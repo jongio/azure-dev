@@ -417,12 +417,13 @@ const (
 //
 // Each element is either a key (for a mapping node) or an index (for a sequence node).
 type pathElem struct {
+
+	// key is the name of the current node.
+	key string
 	// kind is the kind of the current path element.
 	// either key or idx will be set, but not both.
 	kind kind
 
-	// key is the name of the current node.
-	key string
 	// idx is index of the current sequence node.
 	idx int
 

@@ -54,10 +54,10 @@ type Resource struct {
 
 // PropertyDelta represents a property-level change in a resource
 type PropertyDelta struct {
-	Path       string
-	ChangeType string
 	Before     any
 	After      any
+	Path       string
+	ChangeType string
 }
 
 func colorType(opType OperationType) func(string, ...any) string {

@@ -18,12 +18,13 @@ import (
 )
 
 type nodeProject struct {
-	env           *environment.Environment
 	cli           node.Cli
 	commandRunner exec.CommandRunner
 
-	mu       sync.Mutex
+	env      *environment.Environment
 	cliCache map[string]node.Cli
+
+	mu sync.Mutex
 }
 
 // NewNodeProject creates a new instance of a Node.js project framework service.

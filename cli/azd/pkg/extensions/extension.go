@@ -15,29 +15,29 @@ import (
 
 // Extension represents an installed extension.
 type Extension struct {
-	Id                string           `json:"id"`
-	Namespace         string           `json:"namespace"`
-	Capabilities      []CapabilityType `json:"capabilities,omitempty"`
-	DisplayName       string           `json:"displayName"`
-	Description       string           `json:"description"`
-	Version           string           `json:"version"`
-	Usage             string           `json:"usage"`
-	Path              string           `json:"path"`
-	Source            string           `json:"source"`
-	Providers         []Provider       `json:"providers,omitempty"`
-	McpConfig         *McpConfig       `json:"mcp,omitempty"`
-	LastUpdateWarning string           `json:"lastUpdateWarning,omitempty"`
+	reportedError error      // structured error reported by the extension via gRPC
+	McpConfig     *McpConfig `json:"mcp,omitempty"`
 
 	stdin  *bytes.Buffer
 	stdout *output.DynamicMultiWriter
 	stderr *output.DynamicMultiWriter
 
-	readySignal chan error // consolidated channel, buffered with capacity 1
-	readyOnce   sync.Once  // ensures signal is sent only once
-	initialized bool
+	readySignal       chan error // consolidated channel, buffered with capacity 1
+	Id                string     `json:"id"`
+	Namespace         string     `json:"namespace"`
+	DisplayName       string     `json:"displayName"`
+	Description       string     `json:"description"`
+	Version           string     `json:"version"`
+	Usage             string     `json:"usage"`
+	Path              string     `json:"path"`
+	Source            string     `json:"source"`
+	LastUpdateWarning string     `json:"lastUpdateWarning,omitempty"`
 
-	reportedError error      // structured error reported by the extension via gRPC
-	errorMu       sync.Mutex // guards reportedError
+	Capabilities []CapabilityType `json:"capabilities,omitempty"`
+	Providers    []Provider       `json:"providers,omitempty"`
+	readyOnce    sync.Once        // ensures signal is sent only once
+	errorMu      sync.Mutex       // guards reportedError
+	initialized  bool
 }
 
 // init initializes the extension's buffers and signals.

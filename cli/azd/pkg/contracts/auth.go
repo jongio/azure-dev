@@ -19,11 +19,11 @@ const (
 
 // LoginResult is the contract for the output of `azd auth login`.
 type LoginResult struct {
-	// The result of checking for a valid access token.
-	Status LoginStatus `json:"status"`
 	// When status is `LoginStatusSuccess`, the time at which the access token
 	// expires.
 	ExpiresOn *time.Time `json:"expiresOn,omitempty"`
+	// The result of checking for a valid access token.
+	Status LoginStatus `json:"status"`
 }
 
 // AuthStatus represents the authentication state for `azd auth status`.

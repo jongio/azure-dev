@@ -35,12 +35,12 @@ import (
 )
 
 type PublishFlags struct {
+	global *internal.GlobalCommandOptions
+	*internal.EnvFlag
 	ServiceName string
-	All         bool
 	To          string
 	FromPackage string
-	global      *internal.GlobalCommandOptions
-	*internal.EnvFlag
+	All         bool
 }
 
 func (f *PublishFlags) Bind(local *pflag.FlagSet, global *internal.GlobalCommandOptions) {
@@ -128,23 +128,23 @@ func NewPublishAction(
 }
 
 type PublishAction struct {
-	flags               *PublishFlags
-	args                []string
-	projectConfig       *project.ProjectConfig
-	azdCtx              *azdcontext.AzdContext
-	env                 *environment.Environment
 	projectManager      project.ProjectManager
 	serviceManager      project.ServiceManager
 	resourceManager     project.ResourceManager
 	accountManager      account.Manager
-	azCli               *azapi.AzureClient
 	formatter           output.Formatter
 	writer              io.Writer
 	console             input.Console
 	commandRunner       exec.CommandRunner
+	serviceLocator      ioc.ServiceLocator
+	flags               *PublishFlags
+	projectConfig       *project.ProjectConfig
+	azdCtx              *azdcontext.AzdContext
+	env                 *environment.Environment
+	azCli               *azapi.AzureClient
 	alphaFeatureManager *alpha.FeatureManager
 	importManager       *project.ImportManager
-	serviceLocator      ioc.ServiceLocator
+	args                []string
 }
 
 type PublishResult struct {

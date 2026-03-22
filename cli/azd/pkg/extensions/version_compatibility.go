@@ -34,12 +34,12 @@ func VersionIsCompatible(extVersion *ExtensionVersion, azdVersion *semver.Versio
 
 // VersionCompatibilityResult holds the result of filtering extension versions for compatibility
 type VersionCompatibilityResult struct {
-	// Compatible contains only the extension versions compatible with the current azd version
-	Compatible []ExtensionVersion
 	// LatestOverall is the latest version available regardless of compatibility
 	LatestOverall *ExtensionVersion
 	// LatestCompatible is the latest version that is compatible with the current azd
 	LatestCompatible *ExtensionVersion
+	// Compatible contains only the extension versions compatible with the current azd version
+	Compatible []ExtensionVersion
 	// HasNewerIncompatible is true when a newer version exists but is not compatible
 	HasNewerIncompatible bool
 }

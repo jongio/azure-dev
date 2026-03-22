@@ -6,16 +6,6 @@ package errorhandler
 // ErrorSuggestionRule defines a single rule that maps error patterns
 // to an actionable suggestion.
 type ErrorSuggestionRule struct {
-	// Patterns is a list of strings to match against error messages.
-	// By default, strings are matched as case-insensitive substrings.
-	// Set Regex to true to treat all patterns and property values
-	// as regular expressions.
-	Patterns []string `yaml:"patterns,omitempty"`
-
-	// ErrorType is the Go struct type name to match via reflection.
-	// The error chain is walked using errors.As semantics.
-	// Example: "AzureDeploymentError", "ResponseError"
-	ErrorType string `yaml:"errorType,omitempty"`
 
 	// Properties is a map of dot-path property names to expected values.
 	// Properties are resolved via reflection on the matched error type.
@@ -23,9 +13,10 @@ type ErrorSuggestionRule struct {
 	// Set Regex to true to treat values as regular expressions.
 	Properties map[string]string `yaml:"properties,omitempty"`
 
-	// Regex enables regular expression matching for all patterns
-	// and property values in this rule.
-	Regex bool `yaml:"regex,omitempty"`
+	// ErrorType is the Go struct type name to match via reflection.
+	// The error chain is walked using errors.As semantics.
+	// Example: "AzureDeploymentError", "ResponseError"
+	ErrorType string `yaml:"errorType,omitempty"`
 
 	// Handler is the name of a registered ErrorHandler to invoke.
 	// When set, the handler computes the suggestion dynamically
@@ -38,9 +29,19 @@ type ErrorSuggestionRule struct {
 	// Suggestion is the actionable next steps for the user.
 	Suggestion string `yaml:"suggestion,omitempty"`
 
+	// Patterns is a list of strings to match against error messages.
+	// By default, strings are matched as case-insensitive substrings.
+	// Set Regex to true to treat all patterns and property values
+	// as regular expressions.
+	Patterns []string `yaml:"patterns,omitempty"`
+
 	// Links is a list of reference links (each with a URL and
 	// optional title).
 	Links []RuleLink `yaml:"links,omitempty"`
+
+	// Regex enables regular expression matching for all patterns
+	// and property values in this rule.
+	Regex bool `yaml:"regex,omitempty"`
 }
 
 // RuleLink represents a reference link in a YAML rule.

@@ -16,20 +16,20 @@ import (
 
 // MCPSecurityPolicy validates URLs and file paths for MCP tool calls.
 type MCPSecurityPolicy struct {
-	mu               sync.RWMutex
-	blockMetadata    bool
-	blockPrivate     bool
-	requireHTTPS     bool
-	redactHeaders    map[string]bool
-	allowedBasePaths []string
-	blockedCIDRs     []*net.IPNet
-	blockedHosts     map[string]bool
+	redactHeaders map[string]bool
+	blockedHosts  map[string]bool
 	// lookupHost is used for DNS resolution; override in tests.
 	lookupHost func(string) ([]string, error)
 	// onBlocked is an optional callback invoked when a URL or path is blocked.
 	// Parameters: action ("url_blocked", "path_blocked"),
 	// detail (human-readable explanation). Safe for concurrent use.
-	onBlocked func(action, detail string)
+	onBlocked        func(action, detail string)
+	allowedBasePaths []string
+	blockedCIDRs     []*net.IPNet
+	mu               sync.RWMutex
+	blockMetadata    bool
+	blockPrivate     bool
+	requireHTTPS     bool
 }
 
 // NewMCPSecurityPolicy creates an empty security policy.

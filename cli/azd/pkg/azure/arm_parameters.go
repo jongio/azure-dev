@@ -9,9 +9,9 @@ type ArmParameters map[string]ArmParameter
 // ArmParametersFile is the model type for a `.parameters.json` file. It fits the schema outlined here:
 // https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json
 type ArmParameterFile struct {
+	Parameters     ArmParameters `json:"parameters"`
 	Schema         string        `json:"$schema"`
 	ContentVersion string        `json:"contentVersion"`
-	Parameters     ArmParameters `json:"parameters"`
 }
 
 // ArmParameter wraps the configured value or KV reference for the parameter.

@@ -113,11 +113,11 @@ const authFailedPrefix string = "failed to authenticate"
 type AadErrorResponse struct {
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description"`
-	ErrorCodes       []int  `json:"error_codes"`
 	Timestamp        string `json:"timestamp"`
 	TraceId          string `json:"trace_id"`
 	CorrelationId    string `json:"correlation_id"`
 	ErrorUri         string `json:"error_uri"`
+	ErrorCodes       []int  `json:"error_codes"`
 }
 
 // AuthFailedError indicates an authentication request has failed.

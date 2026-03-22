@@ -19,9 +19,9 @@ import (
 // `Kill` is called, the entire job is terminated, which will kill any lingering
 // child processes launched by the root process.
 type CmdTree struct {
-	CmdTreeOptions
 	*exec.Cmd
 	jobObject windows.Handle
+	CmdTreeOptions
 }
 
 func (o *CmdTree) Start() error {

@@ -47,14 +47,14 @@ type Confirm struct {
 	input  *internal.Input
 
 	options            *ConfirmOptions
-	hasValidationError bool
 	value              *bool
+	cursorPosition     *CursorPosition
+	displayValue       string
+	hasValidationError bool
 	showHelp           bool
 	complete           bool
 	submitted          bool
-	displayValue       string
 	cancelled          bool
-	cursorPosition     *CursorPosition
 }
 
 // NewConfirm creates a new Confirm instance.

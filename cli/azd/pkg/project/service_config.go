@@ -14,8 +14,33 @@ import (
 )
 
 type ServiceConfig struct {
+	// The optional K8S / AKS options
+	K8s AksOptions `yaml:"k8s,omitempty"`
 	// Reference to the parent project configuration
 	Project *ProjectConfig `yaml:"-"`
+	// Hook configuration for service
+	Hooks HooksConfig `yaml:"hooks,omitempty"`
+	// Options specific to the DotNetContainerApp target. These are set by the importer and
+	// can not be controlled via the project file today.
+	DotNetContainerApp *DotNetContainerAppOptions `yaml:"-,omitempty"`
+	// Custom configuration for the service target
+	Config map[string]any `yaml:"config,omitempty"`
+	// Computed lazily by useDotnetPublishForDockerBuild and cached. This is true when the project
+	// is a dotnet project and there is not an explicit Dockerfile in the project directory.
+	useDotNetPublishForDockerBuild *bool
+	// Environment variables to set for the service
+	Environment osutil.ExpandableMap `yaml:"env,omitempty"`
+	// Whether to build the service remotely. Only applicable to function app services.
+	// When set to nil (unset), the default behavior based on language is used.
+	RemoteBuild *bool `yaml:"remoteBuild,omitempty"`
+
+	// AdditionalProperties captures any unknown YAML fields for extension support
+	AdditionalProperties map[string]any `yaml:",inline"`
+
+	*ext.EventDispatcher[ServiceLifecycleEventArgs] `yaml:"-"`
+
+	// The infrastructure provisioning configuration
+	Infra provisioning.Options `yaml:"infra,omitempty"`
 	// The friendly name/key of the project from the azure.yaml file
 	Name string `yaml:"-"`
 	// The azure resource group to deploy the service to
@@ -34,39 +59,15 @@ type ServiceConfig struct {
 	OutputPath string `yaml:"dist,omitempty"`
 	// The source image to use for container based applications
 	Image osutil.ExpandableString `yaml:"image,omitempty"`
-	// The optional docker options for configuring the output image
-	Docker DockerProjectOptions `yaml:"docker,omitempty"`
-	// The optional K8S / AKS options
-	K8s AksOptions `yaml:"k8s,omitempty"`
 	// Infrastructure module path relative to the root infra folder
 	Module string `yaml:"module,omitempty"`
-	// The infrastructure provisioning configuration
-	Infra provisioning.Options `yaml:"infra,omitempty"`
-	// Hook configuration for service
-	Hooks HooksConfig `yaml:"hooks,omitempty"`
-	// Dependencies on other services and resources
-	Uses []string `yaml:"uses,omitempty"`
-	// Options specific to the DotNetContainerApp target. These are set by the importer and
-	// can not be controlled via the project file today.
-	DotNetContainerApp *DotNetContainerAppOptions `yaml:"-,omitempty"`
-	// Custom configuration for the service target
-	Config map[string]any `yaml:"config,omitempty"`
-	// Computed lazily by useDotnetPublishForDockerBuild and cached. This is true when the project
-	// is a dotnet project and there is not an explicit Dockerfile in the project directory.
-	useDotNetPublishForDockerBuild *bool
-	// Environment variables to set for the service
-	Environment osutil.ExpandableMap `yaml:"env,omitempty"`
 	// Condition for deploying the service. When evaluated, the service is only deployed if the value
 	// is a truthy boolean (1, true, TRUE, True, yes). If not defined, the service is enabled by default.
 	Condition osutil.ExpandableString `yaml:"condition,omitempty"`
-	// Whether to build the service remotely. Only applicable to function app services.
-	// When set to nil (unset), the default behavior based on language is used.
-	RemoteBuild *bool `yaml:"remoteBuild,omitempty"`
-
-	// AdditionalProperties captures any unknown YAML fields for extension support
-	AdditionalProperties map[string]any `yaml:",inline"`
-
-	*ext.EventDispatcher[ServiceLifecycleEventArgs] `yaml:"-"`
+	// The optional docker options for configuring the output image
+	Docker DockerProjectOptions `yaml:"docker,omitempty"`
+	// Dependencies on other services and resources
+	Uses []string `yaml:"uses,omitempty"`
 
 	// Turns service into a service that is only to be built but not deployed.
 	// This is currently used by Aspire.
@@ -74,19 +75,19 @@ type ServiceConfig struct {
 }
 
 type DotNetContainerAppOptions struct {
-	Manifest    *apphost.Manifest
-	AppHostPath string
-	ProjectName string
-	// ContainerImage is non-empty when a prebuilt container image is being used.
-	ContainerImage string
+	Manifest *apphost.Manifest
 	// ContainerFiles is a list of files to include in the container image.
 	ContainerFiles map[string]ContainerFile
+	AppHostPath    string
+	ProjectName    string
+	// ContainerImage is non-empty when a prebuilt container image is being used.
+	ContainerImage string
 }
 
 type ContainerFile struct {
 	ServiceConfig *ServiceConfig
-	Sources       []string
 	Destination   string
+	Sources       []string
 }
 
 // Path returns the fully qualified path to the project

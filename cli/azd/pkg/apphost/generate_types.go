@@ -33,34 +33,34 @@ type genContainerAppIngressAdditionalPortMappings struct {
 }
 
 type genContainerAppIngress struct {
-	genContainerAppIngressPort
 	Transport              string
-	AllowInsecure          bool
-	UsingDefaultPort       bool
 	AdditionalPortMappings []genContainerAppIngressAdditionalPortMappings
+	genContainerAppIngressPort
+	AllowInsecure    bool
+	UsingDefaultPort bool
 }
 
 type genContainer struct {
-	Image            string
 	Env              map[string]string
-	Bindings         custommaps.WithOrder[Binding]
 	Inputs           map[string]Input
+	DeploymentParams map[string]any
+	Image            string
+	DeploymentSource string
+	Bindings         custommaps.WithOrder[Binding]
 	Volumes          []*Volume
 	BindMounts       []*BindMount
 	Args             []string
-	DeploymentParams map[string]any
-	DeploymentSource string
 }
 
 type genDockerfile struct {
+	Env              map[string]string
+	BuildArgs        map[string]string
+	DeploymentParams map[string]any
 	Path             string
 	Context          string
-	Env              map[string]string
-	Bindings         custommaps.WithOrder[Binding]
-	BuildArgs        map[string]string
-	Args             []string
-	DeploymentParams map[string]any
 	DeploymentSource string
+	Bindings         custommaps.WithOrder[Binding]
+	Args             []string
 }
 
 type genBuildContainer struct {
@@ -78,32 +78,32 @@ type genBuildContainer struct {
 }
 
 type genBuildContainerDetails struct {
-	Context    string
-	Dockerfile string
 	Args       map[string]string
 	Secrets    map[string]ContainerV1BuildSecrets
+	Context    string
+	Dockerfile string
 	BuildOnly  bool
 }
 
 type genProject struct {
-	Path             string
 	Env              map[string]string
-	Args             []string
-	Bindings         custommaps.WithOrder[Binding]
 	DeploymentParams map[string]any
-	DeploymentSource string
 	ContainerFiles   map[string]ContainerFile
+	Path             string
+	DeploymentSource string
+	Bindings         custommaps.WithOrder[Binding]
+	Args             []string
 }
 
 type genDapr struct {
-	AppId                  string
-	Application            string
 	AppPort                *int
 	AppProtocol            *string
 	DaprHttpMaxRequestSize *int
 	DaprHttpReadBufferSize *int
 	EnableApiLogging       *bool
 	LogLevel               *string
+	AppId                  string
+	Application            string
 }
 
 type genDaprComponentMetadata struct {
@@ -134,13 +134,6 @@ type genBicepModules struct {
 }
 
 type genBicepTemplateContext struct {
-	HasContainerRegistry            bool
-	HasContainerEnvironment         bool
-	HasDaprStore                    bool
-	HasLogAnalyticsWorkspace        bool
-	RequiresPrincipalId             bool
-	RequiresStorageVolume           bool
-	HasBindMounts                   bool
 	KeyVaults                       map[string]genKeyVault
 	ContainerAppEnvironmentServices map[string]genContainerAppEnvironmentServices
 	ContainerApps                   map[string]genContainerApp
@@ -150,35 +143,42 @@ type genBicepTemplateContext struct {
 	OutputSecretParameters          map[string]genOutputParameter
 	BicepModules                    map[string]genBicepModules
 	// parameters to be passed from main.bicep to resources.bicep
-	mappedParameters []string
+	mappedParameters         []string
+	HasContainerRegistry     bool
+	HasContainerEnvironment  bool
+	HasDaprStore             bool
+	HasLogAnalyticsWorkspace bool
+	RequiresPrincipalId      bool
+	RequiresStorageVolume    bool
+	HasBindMounts            bool
 }
 
 type genContainerAppManifestTemplateContext struct {
-	Name            string
-	Entrypoint      string
 	Ingress         *genContainerAppIngress
 	Env             map[string]string
 	Secrets         map[string]string
 	KeyVaultSecrets map[string]string
 	Dapr            *genContainerAppManifestTemplateContextDapr
+	DeployParams    map[string]string
+	Name            string
+	Entrypoint      string
+	DeploySource    string
 	Args            []string
 	Volumes         []*Volume
 	BindMounts      []*BindMount
-	DeployParams    map[string]string
-	DeploySource    string
 }
 
 type genProjectFileContext struct {
-	Name     string
 	Services map[string]string
+	Name     string
 }
 
 type genContainerAppManifestTemplateContextDapr struct {
-	AppId              string
 	AppPort            *int
 	AppProtocol        *string
 	EnableApiLogging   *bool
 	HttpMaxRequestSize *int
 	HttpReadBufferSize *int
 	LogLevel           *string
+	AppId              string
 }

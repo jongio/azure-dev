@@ -35,11 +35,13 @@ const (
 
 // Options for a provisioning provider.
 type Options struct {
+	DeploymentStacks map[string]any `yaml:"deploymentStacks,omitempty"`
 	Provider         ProviderKind   `yaml:"provider,omitempty"`
 	Path             string         `yaml:"path,omitempty"`
 	Module           string         `yaml:"module,omitempty"`
 	Name             string         `yaml:"name,omitempty"`
-	DeploymentStacks map[string]any `yaml:"deploymentStacks,omitempty"`
+	// The mode in which the deployment is being run.
+	Mode Mode `yaml:"-"`
 	// Provisioning options for each individually defined layer.
 	Layers []Options `yaml:"layers,omitempty"`
 
@@ -47,8 +49,6 @@ type Options struct {
 
 	// IgnoreDeploymentState when true, skips the deployment state check.
 	IgnoreDeploymentState bool `yaml:"-"`
-	// The mode in which the deployment is being run.
-	Mode Mode `yaml:"-"`
 }
 
 // GetWithDefaults merges the provided infra options with the default provisioning options
@@ -170,10 +170,10 @@ type StateResult struct {
 }
 
 type Parameter struct {
-	Name          string
-	Secret        bool
 	Value         any
+	Name          string
 	EnvVarMapping []string
+	Secret        bool
 	// true when the parameter value was set by the user from the command line (prompt)
 	LocalPrompt        bool
 	UsingEnvVarMapping bool

@@ -69,8 +69,8 @@ type Deployment interface {
 
 type ResourceGroupDeployment struct {
 	*ResourceGroupScope
-	name       string
 	deployment *azapi.ResourceDeployment
+	name       string
 }
 
 func (s *ResourceGroupDeployment) Name() string {
@@ -235,8 +235,8 @@ func (s *ResourceGroupScope) Deployment(deploymentName string) Deployment {
 
 type SubscriptionDeployment struct {
 	*SubscriptionScope
-	name       string
 	deployment *azapi.ResourceDeployment
+	name       string
 }
 
 func (s *SubscriptionDeployment) Name() string {

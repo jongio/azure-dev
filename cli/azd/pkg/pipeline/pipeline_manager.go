@@ -66,17 +66,17 @@ type PipelineManagerArgs struct {
 	PipelineServicePrincipalId   string
 	PipelineServicePrincipalName string
 	PipelineRemoteName           string
-	PipelineRoleNames            []string
 	PipelineProvider             string
 	PipelineAuthTypeName         string
 	ServiceManagementReference   string
+	PipelineRoleNames            []string
 }
 
 // CredentialOptions represents the options for configuring credentials for a pipeline.
 type CredentialOptions struct {
+	FederatedCredentialOptions []*graphsdk.FederatedIdentityCredential
 	EnableClientCredentials    bool
 	EnableFederatedCredentials bool
-	FederatedCredentialOptions []*graphsdk.FederatedIdentityCredential
 }
 
 type PipelineConfigResult struct {
@@ -87,26 +87,26 @@ type PipelineConfigResult struct {
 // PipelineManager takes care of setting up the scm and pipeline.
 // The manager allows to use and test scm providers without a cobra command.
 type PipelineManager struct {
+	msiService        armmsi.ArmMsiService
 	envManager        environment.Manager
 	scmProvider       ScmProvider
 	ciProvider        CiProvider
+	entraIdService    entraid.EntraIdService
+	console           input.Console
+	serviceLocator    ioc.ServiceLocator
+	userConfigManager config.UserConfigManager
+	keyVaultService   keyvault.KeyVaultService
+	prompter          prompt.Prompter
 	args              *PipelineManagerArgs
 	azdCtx            *azdcontext.AzdContext
 	env               *environment.Environment
-	entraIdService    entraid.EntraIdService
 	gitCli            *git.Cli
-	console           input.Console
-	serviceLocator    ioc.ServiceLocator
 	importManager     *project.ImportManager
 	configOptions     *configurePipelineOptions
 	infra             *project.Infra
-	userConfigManager config.UserConfigManager
-	keyVaultService   keyvault.KeyVaultService
 	prjConfig         *project.ProjectConfig
-	ciProviderType    ciProviderType
-	msiService        armmsi.ArmMsiService
-	prompter          prompt.Prompter
 	dotnetCli         *dotnet.Cli
+	ciProviderType    ciProviderType
 }
 
 func NewPipelineManager(
@@ -160,10 +160,10 @@ func (pm *PipelineManager) ScmProviderName() string {
 }
 
 type servicePrincipalResult struct {
+	servicePrincipal *graphsdk.ServicePrincipal
 	appIdOrName      string
 	applicationName  string
 	lookupKind       servicePrincipalLookupKind
-	servicePrincipal *graphsdk.ServicePrincipal
 }
 
 func servicePrincipal(

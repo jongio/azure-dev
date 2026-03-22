@@ -28,4 +28,14 @@ type GlobalCommandOptions struct {
 	// like learn.microsoft.com. This is set directly when calling NewRootCmd
 	// and not bound to any command flags.
 	GenerateStaticHelp bool
+
+	// CpuProfile is the file path to write a CPU profile to.
+	// When set, CPU profiling is started before command execution and stopped after.
+	// Developer-only flag, hidden from help.
+	CpuProfile string
+
+	// MemProfile is the file path to write a heap memory profile to.
+	// When set, a heap profile is written after command execution completes.
+	// Developer-only flag, hidden from help.
+	MemProfile string
 }

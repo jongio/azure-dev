@@ -47,16 +47,17 @@ const (
 
 // detectConfirm handles prompting for confirming the detected services and databases
 type detectConfirm struct {
-	// detected services and databases
-	Services  []appdetect.Project
+	console   input.Console
 	Databases map[appdetect.DatabaseDep]EntryKind
 
 	// the root directory of the project
 	root string
 
+	// detected services and databases
+	Services []appdetect.Project
+
 	// internal state and components
 	modified bool
-	console  input.Console
 }
 
 // Init initializes state from initial detection output

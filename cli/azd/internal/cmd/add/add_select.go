@@ -24,13 +24,13 @@ type resourceSelection func(console input.Console, ctx context.Context, p Prompt
 
 // A menu to be displayed.
 type Menu struct {
+
+	// SelectResource is the continuation that returns the resource with type filled in.
+	SelectResource resourceSelection
 	// Namespace of the resource type.
 	Namespace string
 	// Label displayed in the menu.
 	Label string
-
-	// SelectResource is the continuation that returns the resource with type filled in.
-	SelectResource resourceSelection
 }
 
 func (a *AddAction) selectMenu() []Menu {

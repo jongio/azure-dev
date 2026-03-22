@@ -29,8 +29,8 @@ type connectionObserver interface {
 //	  "handle": <some-integer>
 //	}
 type Observer[T any] struct {
-	handle int
 	c      jsonrpc2.Conn
+	handle int
 }
 
 func (o *Observer[T]) OnNext(ctx context.Context, value T) error {

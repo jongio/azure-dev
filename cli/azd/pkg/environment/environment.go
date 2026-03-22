@@ -60,7 +60,9 @@ const PlatformTypeEnvVarName = "AZD_PLATFORM_TYPE"
 // The zero value of an Environment is not valid. Use [New] to create one. When writing tests,
 // [Ephemeral] and [EphemeralWithValues] are useful to create environments which are not persisted to disk.
 type Environment struct {
-	name string
+
+	// Config is environment specific config
+	Config config.Config
 
 	// dotenv is a map of keys to values, persisted to the `.env` file stored in this environment's [Root].
 	dotenv map[string]string
@@ -69,8 +71,7 @@ type Environment struct {
 	// happens in Save
 	deletedKeys map[string]struct{}
 
-	// Config is environment specific config
-	Config config.Config
+	name string
 }
 
 // AzdInitialEnvironmentConfigName is part of a strategy to re-construct AZD environment in CI/CD from an initial state.

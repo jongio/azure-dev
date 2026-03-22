@@ -13,13 +13,14 @@ import (
 )
 
 type EventManager struct {
-	extensionId   string
 	client        *AzdClient
 	broker        *grpcbroker.MessageBroker[EventMessage]
 	projectEvents map[string]ProjectEventHandler
 	serviceEvents map[string]ServiceEventHandler
-	eventsMutex   sync.RWMutex // Protects both projectEvents and serviceEvents maps
 	brokerLogger  *log.Logger
+
+	extensionId string
+	eventsMutex sync.RWMutex // Protects both projectEvents and serviceEvents maps
 
 	// Synchronization for concurrent access
 	mu sync.RWMutex

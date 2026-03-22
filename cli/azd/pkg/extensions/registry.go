@@ -55,6 +55,8 @@ const (
 
 // Extension represents an extension in the registry
 type ExtensionMetadata struct {
+	// Platforms is a map of platform specific metadata required for extensions
+	Platforms map[string]map[string]any `json:"platforms,omitempty"`
 	// Id is a unique identifier for the extension
 	Id string `json:"id"`
 	// Namespace is used to expose extension commands within a named group
@@ -65,14 +67,12 @@ type ExtensionMetadata struct {
 	Description string `json:"description"`
 	// Website is the URL to the extension's documentation or homepage
 	Website string `json:"website,omitempty"`
-	// Versions is a list of versions of the extension that are released over time.
-	Versions []ExtensionVersion `json:"versions"`
 	// Source is used to store the extension source from where the extension is fetched
 	Source string `json:"source,omitempty"`
+	// Versions is a list of versions of the extension that are released over time.
+	Versions []ExtensionVersion `json:"versions"`
 	// Tags is a list of tags that can be used to filter extensions
 	Tags []string `json:"tags,omitempty"`
-	// Platforms is a map of platform specific metadata required for extensions
-	Platforms map[string]map[string]any `json:"platforms,omitempty"`
 }
 
 // ExtensionDependency represents a dependency of an extension
@@ -99,42 +99,42 @@ type McpServerConfig struct {
 
 // ExtensionVersion represents a version of an extension
 type ExtensionVersion struct {
+	// Artifacts is a map of artifacts for the extension key on platform (os & architecture)
+	Artifacts map[string]ExtensionArtifact `json:"artifacts,omitempty"`
+	// McpConfig is the MCP server configuration for this extension version
+	McpConfig *McpConfig `json:"mcp,omitempty"`
 	// Version is the version of the extension
 	Version string `json:"version"`
 	// RequiredAzdVersion is the azd core version constraint required to use this extension version.
 	// When set, azd will only install this version if the running azd version satisfies the constraint.
 	// Supports semantic versioning constraint expressions (e.g. ">= 1.24.0").
 	RequiredAzdVersion string `json:"requiredAzdVersion,omitempty"`
+	// Usage is show how to use the extension
+	Usage string `json:"usage"`
+	// Entry point is the entry point for the extension
+	// This will typically be the name of the executable or script to run
+	EntryPoint string `json:"entryPoint,omitempty"`
 	// Capabilities is a list of capabilities that the extension provides
 	Capabilities []CapabilityType `json:"capabilities,omitempty"`
 	// Providers is a list of providers that this extension version registers
 	Providers []Provider `json:"providers,omitempty"`
-	// Usage is show how to use the extension
-	Usage string `json:"usage"`
 	// Examples is a list of examples for the extension
 	Examples []ExtensionExample `json:"examples"`
-	// Artifacts is a map of artifacts for the extension key on platform (os & architecture)
-	Artifacts map[string]ExtensionArtifact `json:"artifacts,omitempty"`
 	// Dependencies is a list of dependencies for the extension
 	// An extension with dependencies and no artifacts is considered an extension pack.
 	// The dependencies are resolved and installed when the extension pack is installed.
 	Dependencies []ExtensionDependency `json:"dependencies,omitempty"`
-	// Entry point is the entry point for the extension
-	// This will typically be the name of the executable or script to run
-	EntryPoint string `json:"entryPoint,omitempty"`
-	// McpConfig is the MCP server configuration for this extension version
-	McpConfig *McpConfig `json:"mcp,omitempty"`
 }
 
 // ExtensionArtifact represents the artifact information of an extension
 // An artifact can be a URL to a single binary file or a zip archive.
 type ExtensionArtifact struct {
-	// URL is the location of the artifact
-	URL string `json:"url"`
-	// Checksum is the checksum of the artifact
-	Checksum ExtensionChecksum `json:"checksum"`
 	// AdditionalMetadata is a map of additional metadata for the artifact
 	AdditionalMetadata map[string]any `json:"-"`
+	// Checksum is the checksum of the artifact
+	Checksum ExtensionChecksum `json:"checksum"`
+	// URL is the location of the artifact
+	URL string `json:"url"`
 }
 
 // ExtensionChecksum represents the checksum of an extension artifact used to validate the integrity of the artifact.

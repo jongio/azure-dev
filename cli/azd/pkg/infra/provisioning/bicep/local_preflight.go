@@ -121,11 +121,11 @@ type armTemplateResource struct {
 
 // armTemplateSKU represents the SKU block of an ARM resource.
 type armTemplateSKU struct {
+	Capacity *int   `json:"capacity,omitempty"`
 	Name     string `json:"name"`
 	Tier     string `json:"tier,omitempty"`
 	Size     string `json:"size,omitempty"`
 	Family   string `json:"family,omitempty"`
-	Capacity *int   `json:"capacity,omitempty"`
 }
 
 // armTemplatePlan represents a marketplace plan block.
@@ -139,8 +139,8 @@ type armTemplatePlan struct {
 
 // armTemplateIdentity represents the managed identity configuration.
 type armTemplateIdentity struct {
-	Type                   string                            `json:"type"`
 	UserAssignedIdentities map[string]armTemplateIdentityRef `json:"userAssignedIdentities,omitempty"`
+	Type                   string                            `json:"type"`
 }
 
 // armTemplateIdentityRef is an entry in userAssignedIdentities (value is typically empty).
@@ -151,10 +151,10 @@ type armTemplateIdentityRef struct {
 
 // armTemplateCopy describes the copy/iteration loop for a resource.
 type armTemplateCopy struct {
-	Name      string `json:"name"`
 	Count     any    `json:"count"`               // can be int or expression string
-	Mode      string `json:"mode,omitempty"`      // "serial" or "parallel" (default)
 	BatchSize *int   `json:"batchSize,omitempty"` // used when mode is "serial"
+	Name      string `json:"name"`
+	Mode      string `json:"mode,omitempty"` // "serial" or "parallel" (default)
 }
 
 // armTemplateVariable represents a variable value in the template. Variables can hold any JSON type.
@@ -162,14 +162,14 @@ type armTemplateVariable = json.RawMessage
 
 // armTemplateFunction represents a user-defined function in an ARM template.
 type armTemplateFunction struct {
-	Namespace string                       `json:"namespace"`
 	Members   map[string]armTemplateMember `json:"members"`
+	Namespace string                       `json:"namespace"`
 }
 
 // armTemplateMember represents a single member in a user-defined function namespace.
 type armTemplateMember struct {
-	Parameters []armTemplateMemberParameter `json:"parameters,omitempty"`
 	Output     armTemplateMemberOutput      `json:"output"`
+	Parameters []armTemplateMemberParameter `json:"parameters,omitempty"`
 }
 
 // armTemplateMemberParameter is a parameter declaration inside a user-defined function.
@@ -180,31 +180,31 @@ type armTemplateMemberParameter struct {
 
 // armTemplateMemberOutput is the output declaration of a user-defined function.
 type armTemplateMemberOutput struct {
-	Type  string `json:"type"`
 	Value any    `json:"value"`
+	Type  string `json:"type"`
 }
 
 // armTemplateParameterDef is the parser's own representation of an ARM template parameter definition.
 // This is intentionally separate from azure.ArmTemplateParameterDefinition to keep the parser self-contained.
 type armTemplateParameterDef struct {
-	Type          string                     `json:"type"`
 	DefaultValue  any                        `json:"defaultValue,omitempty"`
-	AllowedValues []any                      `json:"allowedValues,omitempty"`
 	MinValue      *int                       `json:"minValue,omitempty"`
 	MaxValue      *int                       `json:"maxValue,omitempty"`
 	MinLength     *int                       `json:"minLength,omitempty"`
 	MaxLength     *int                       `json:"maxLength,omitempty"`
 	Metadata      map[string]json.RawMessage `json:"metadata,omitempty"`
+	Type          string                     `json:"type"`
 	Description   string                     `json:"-"` // extracted from metadata
+	AllowedValues []any                      `json:"allowedValues,omitempty"`
 }
 
 // armTemplateOutputDef represents an output declaration in the ARM template.
 type armTemplateOutputDef struct {
-	Type      string           `json:"type"`
 	Value     any              `json:"value"`
 	Condition any              `json:"condition,omitempty"`
 	Copy      *armTemplateCopy `json:"copy,omitempty"`
 	Metadata  map[string]any   `json:"metadata,omitempty"`
+	Type      string           `json:"type"`
 }
 
 // armTemplateResources is a custom type that handles both ARM template resource formats:
@@ -240,15 +240,15 @@ func (r *armTemplateResources) UnmarshalJSON(data []byte) error {
 // armTemplate is the parser's own comprehensive representation of a full ARM/JSON deployment template.
 // Follows https://learn.microsoft.com/azure/azure-resource-manager/templates/syntax
 type armTemplate struct {
+	Parameters      map[string]armTemplateParameterDef `json:"parameters,omitempty"`
+	Variables       map[string]armTemplateVariable     `json:"variables,omitempty"`
+	Outputs         map[string]armTemplateOutputDef    `json:"outputs,omitempty"`
 	Schema          string                             `json:"$schema"`
 	ContentVersion  string                             `json:"contentVersion"`
 	LanguageVersion string                             `json:"languageVersion,omitempty"`
 	APIProfile      string                             `json:"apiProfile,omitempty"`
-	Parameters      map[string]armTemplateParameterDef `json:"parameters,omitempty"`
-	Variables       map[string]armTemplateVariable     `json:"variables,omitempty"`
 	Functions       []armTemplateFunction              `json:"functions,omitempty"`
 	Resources       armTemplateResources               `json:"resources"`
-	Outputs         map[string]armTemplateOutputDef    `json:"outputs,omitempty"`
 }
 
 // PreflightCheckSeverity indicates the severity level of a preflight check result.
@@ -263,10 +263,10 @@ const (
 
 // PreflightCheckResult holds the outcome of a single preflight check function.
 type PreflightCheckResult struct {
-	// Severity indicates whether this result is a warning or a blocking error.
-	Severity PreflightCheckSeverity
 	// Message is a human-readable description of the finding.
 	Message string
+	// Severity indicates whether this result is a warning or a blocking error.
+	Severity PreflightCheckSeverity
 }
 
 // validationContext provides the data and utilities available to preflight check functions.
@@ -274,8 +274,6 @@ type PreflightCheckResult struct {
 type validationContext struct {
 	// Console provides user interaction capabilities (prompts, messages).
 	Console input.Console
-	// Props contains derived properties from analyzing the ARM template resources.
-	Props resourcesProperties
 	// ResourcesSnapshot is the raw JSON output from `bicep snapshot`, containing the fully
 	// resolved deployment graph. It may be nil if the Bicep CLI was not available.
 	ResourcesSnapshot json.RawMessage
@@ -283,6 +281,8 @@ type validationContext struct {
 	// Each entry represents a resource that would be deployed, with resolved values.
 	// It may be nil if the Bicep CLI was not available.
 	SnapshotResources []armTemplateResource
+	// Props contains derived properties from analyzing the ARM template resources.
+	Props resourcesProperties
 }
 
 // snapshotResult represents the top-level structure of the Bicep snapshot JSON output.

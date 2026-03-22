@@ -12,7 +12,7 @@ const (
 )
 
 type EventEnvelope struct {
-	Type      EventDataType `json:"type"`
 	Timestamp time.Time     `json:"timestamp"`
 	Data      any           `json:"data"`
+	Type      EventDataType `json:"type"`
 }

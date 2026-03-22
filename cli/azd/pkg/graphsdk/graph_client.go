@@ -9,8 +9,8 @@ import (
 )
 
 type GraphClient struct {
-	pipeline runtime.Pipeline
 	host     string
+	pipeline runtime.Pipeline
 }
 
 // Creates a new instance of the Microsoft Graph client

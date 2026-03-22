@@ -39,6 +39,9 @@ import (
 * - The title and the logs are truncated with the symbol `...` at the end when it is bigger than the screen width.
  */
 type progressLog struct {
+	// This function is used to find out what's the terminal width. The log progress is disabled, i.e. writes are no-opt,
+	// if this function returns a number <= 0.
+	terminalWidthFn TerminalWidthFn
 	// The initial top wording. This value can be updated using Header() method.
 	header string
 	// The raw initial title for the component. This value can't be changed after Starting the component.
@@ -47,17 +50,14 @@ type progressLog struct {
 	displayTitle string
 	// The line on the bottom. The value is saved on the component state so it is not generated on every re-draw.
 	footerLine string
-	// The number of rows to display for logging.
-	lines int
 	// Use prefix for indentation or any other symbol before each line.
 	prefix string
 	// This list is used as the memory buffer for the logs. The buffer is kept with the size of `lines`
 	output []string
+	// The number of rows to display for logging.
+	lines int
 	// The mutex is used to coordinate updating the header, stopping the component and printing logs.
 	outputMutex sync.Mutex
-	// This function is used to find out what's the terminal width. The log progress is disabled, i.e. writes are no-opt,
-	// if this function returns a number <= 0.
-	terminalWidthFn TerminalWidthFn
 }
 
 /****************** Exported method ****************

@@ -60,6 +60,7 @@ func NewAzdoScmProvider(
 // AzdoRepositoryDetails provides extra state needed for the AzDo provider.
 // this is stored as the details property in repoDetails
 type AzdoRepositoryDetails struct {
+	buildDefinition *build.BuildDefinition
 	projectName     string
 	projectId       string
 	repoId          string
@@ -68,7 +69,6 @@ type AzdoRepositoryDetails struct {
 	repoWebUrl      string
 	remoteUrl       string
 	sshUrl          string
-	buildDefinition *build.BuildDefinition
 }
 
 // ***  subareaProvider implementation ******

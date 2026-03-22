@@ -13,10 +13,10 @@ import (
 
 // PreflightReportItem represents a single finding from preflight validation.
 type PreflightReportItem struct {
-	// IsError is true for blocking errors, false for warnings.
-	IsError bool
 	// Message describes the finding.
 	Message string
+	// IsError is true for blocking errors, false for warnings.
+	IsError bool
 }
 
 // PreflightReport displays the results of local preflight validation.

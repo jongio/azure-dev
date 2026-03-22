@@ -40,13 +40,13 @@ var _ azcore.TokenCredential = (*TokenProvider)(nil)
 
 // TokenProviderOptions configures a [TokenProvider].
 type TokenProviderOptions struct {
-	// TenantID overrides the tenant obtained from the AZD deployment context.
-	// When empty, the provider queries the AZD gRPC server for the current tenant.
-	TenantID string
 
 	// Credential overrides the default credential chain.
 	// When nil, [azidentity.AzureDeveloperCLICredential] is used.
 	Credential azcore.TokenCredential
+	// TenantID overrides the tenant obtained from the AZD deployment context.
+	// When empty, the provider queries the AZD gRPC server for the current tenant.
+	TenantID string
 }
 
 // NewTokenProvider creates a [TokenProvider] for the given AZD client.

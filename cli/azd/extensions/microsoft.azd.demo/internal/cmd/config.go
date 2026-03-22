@@ -17,24 +17,24 @@ import (
 
 // MonitoringConfig represents the project-level monitoring configuration
 type MonitoringConfig struct {
-	Enabled       bool   `json:"enabled"`
 	Environment   string `json:"environment"`
-	RetentionDays int    `json:"retentionDays"`
 	AlertEmail    string `json:"alertEmail"`
+	RetentionDays int    `json:"retentionDays"`
+	Enabled       bool   `json:"enabled"`
 }
 
 // ServiceMonitoringConfig represents service-level monitoring configuration
 type ServiceMonitoringConfig struct {
-	Enabled         bool   `json:"enabled"`
-	HealthCheckPath string `json:"healthCheckPath"`
-	MetricsPort     int    `json:"metricsPort"`
-	LogLevel        string `json:"logLevel"`
+	HealthCheckPath string   `json:"healthCheckPath"`
+	LogLevel        string   `json:"logLevel"`
+	Tags            []string `json:"tags"`
 	AlertThresholds struct {
 		ErrorRate      float64 `json:"errorRate"`
 		ResponseTimeMs int     `json:"responseTimeMs"`
 		CPUPercent     int     `json:"cpuPercent"`
 	} `json:"alertThresholds"`
-	Tags []string `json:"tags"`
+	MetricsPort int  `json:"metricsPort"`
+	Enabled     bool `json:"enabled"`
 }
 
 func newConfigCommand() *cobra.Command {

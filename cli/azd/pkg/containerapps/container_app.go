@@ -764,8 +764,8 @@ func (cas *containerAppService) UpdateContainerAppJobImage(
 }
 
 type containerAppCustomApiVersionAndBodyPolicy struct {
-	apiVersion string
 	body       *json.RawMessage
+	apiVersion string
 }
 
 func (p *containerAppCustomApiVersionAndBodyPolicy) Do(req *policy.Request) (*http.Response, error) {

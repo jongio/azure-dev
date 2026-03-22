@@ -52,7 +52,6 @@ func addRandomChars(buf []byte, pos *uint, count uint, choices string) error {
 
 // GenerateConfig are the settings to control the output of calling Generate.
 type GenerateConfig struct {
-	Length     uint  `json:"length,omitempty"`
 	NoLower    *bool `json:"noLower,omitempty"`
 	NoUpper    *bool `json:"noUpper,omitempty"`
 	NoNumeric  *bool `json:"noNumeric,omitempty"`
@@ -61,6 +60,7 @@ type GenerateConfig struct {
 	MinUpper   *uint `json:"minUpper,omitempty"`
 	MinNumeric *uint `json:"minNumeric,omitempty"`
 	MinSpecial *uint `json:"minSpecial,omitempty"`
+	Length     uint  `json:"length,omitempty"`
 }
 
 // Generate generates a password based on the provided configuration.

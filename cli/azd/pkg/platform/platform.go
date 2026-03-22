@@ -19,8 +19,8 @@ var (
 type PlatformKind string
 
 type Config struct {
-	Type   PlatformKind   `yaml:"type"`
 	Config map[string]any `yaml:"config"`
+	Type   PlatformKind   `yaml:"type"`
 }
 
 // Initialize configures the IoC container with the platform specific components

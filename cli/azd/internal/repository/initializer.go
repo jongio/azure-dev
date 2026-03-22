@@ -219,8 +219,8 @@ func (i *Initializer) copyLocalTemplate(source, destination string) error {
 	// Collect .gitignore matchers from the source template, including nested .gitignore files.
 	// Each matcher is paired with its base directory for relative path computation.
 	type gitignoreMatcher struct {
-		base    string
 		ignorer gitignore.GitIgnore
+		base    string
 	}
 	var matchers []gitignoreMatcher
 

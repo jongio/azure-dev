@@ -129,12 +129,12 @@ func (p *DefaultPrompter) PromptLocation(
 }
 
 type PromptResourceOptions struct {
-	// DisableCreateNew disables the option to create a new resource group.
-	DisableCreateNew bool
 
 	// DefaultName is the default name to use when creating a new resource group.
 	// If not specified, the default name will be generated based on the environment name.
 	DefaultName string
+	// DisableCreateNew disables the option to create a new resource group.
+	DisableCreateNew bool
 }
 
 func (p *DefaultPrompter) PromptResourceGroup(ctx context.Context, options PromptResourceOptions) (string, error) {

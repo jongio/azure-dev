@@ -27,10 +27,6 @@ import (
 type scenarioInput struct {
 	SelectedScenario string `json:"selectedScenario,omitempty"`
 
-	UseCustomData       bool     `json:"useCustomData,omitempty"`
-	DataTypes           []string `json:"dataTypes,omitempty"`
-	DataLocations       []string `json:"dataLocations,omitempty"`
-	InteractionTypes    []string `json:"interactionTypes,omitempty"`
 	LocalFilePath       string   `json:"localFilePath,omitempty"`
 	LocalFileSelection  string   `json:"localFileSelection,omitempty"`
 	LocalFileGlobFilter string   `json:"localFileGlobFilter,omitempty"`
@@ -39,13 +35,18 @@ type scenarioInput struct {
 	DatabaseId          string   `json:"databaseId,omitempty"`
 	MessagingType       string   `json:"messagingType,omitempty"`
 	MessagingId         string   `json:"messagingId,omitempty"`
+	VectorStoreType     string   `json:"vectorStoreType,omitempty"`
+	VectorStoreId       string   `json:"vectorStoreId,omitempty"`
+	DataTypes           []string `json:"dataTypes,omitempty"`
+	DataLocations       []string `json:"dataLocations,omitempty"`
+	InteractionTypes    []string `json:"interactionTypes,omitempty"`
 	ModelTasks          []string `json:"modelTasks,omitempty"`
 	ModelSelections     []string `json:"modelSelections,omitempty"`
 	AppHostTypes        []string `json:"appHostTypes,omitempty"`
 	AppLanguages        []string `json:"appLanguages,omitempty"`
 	AppResourceIds      []string `json:"appResourceIds,omitempty"`
-	VectorStoreType     string   `json:"vectorStoreType,omitempty"`
-	VectorStoreId       string   `json:"vectorStoreId,omitempty"`
+
+	UseCustomData bool `json:"useCustomData,omitempty"`
 }
 
 type appServiceRuntime struct {

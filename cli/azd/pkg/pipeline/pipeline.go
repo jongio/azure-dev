@@ -41,14 +41,13 @@ type subareaProvider interface {
 // gitRepositoryDetails provides a common abstraction across all scm providers.
 // each provider implements the code to extract this fields from a remote url.
 type gitRepositoryDetails struct {
+	details any
 	// Repository owner
 	owner string
 	// Repository name
 	repoName string
 	// System path where the git project is
 	gitProjectPath string
-	//Indicates if the repo was successfully pushed a remote
-	pushStatus bool
 	// remote is the git-remote, which can be in ssh or https format
 	remote string
 	// url holds the remote url regardless if the remote is an ssh or https string
@@ -56,7 +55,8 @@ type gitRepositoryDetails struct {
 	// branch
 	branch string
 
-	details any
+	//Indicates if the repo was successfully pushed a remote
+	pushStatus bool
 }
 
 // ScmProvider defines the base behavior for a source control manager provider.
@@ -359,13 +359,13 @@ type projectProperties struct {
 	CiProvider            ciProviderType
 	InfraProvider         infraProviderType
 	RepoRoot              string
-	HasAppHost            bool
 	BranchName            string
 	AuthType              PipelineAuthType
 	Variables             []string
 	Secrets               []string
 	RequiredAlphaFeatures []string
 	providerParameters    []provisioning.Parameter
+	HasAppHost            bool
 }
 
 type authConfiguration struct {

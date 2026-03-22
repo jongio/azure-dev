@@ -20,8 +20,8 @@ type Source interface {
 }
 
 type registrySource struct {
-	name     string
 	registry *Registry
+	name     string
 }
 
 // newRegistrySource creates a new registry source.

@@ -12,9 +12,9 @@ import (
 
 // ComponentConfig is a base configuration structure used by multiple AI components
 type ComponentConfig struct {
+	Overrides map[string]osutil.ExpandableString `yaml:"overrides,omitempty"`
 	Name      osutil.ExpandableString            `yaml:"name,omitempty"`
 	Path      string                             `yaml:"path,omitempty"`
-	Overrides map[string]osutil.ExpandableString `yaml:"overrides,omitempty"`
 }
 
 type DeploymentConfig struct {
@@ -25,21 +25,21 @@ type DeploymentConfig struct {
 
 // EndpointDeploymentConfig is a configuration structure for an ML online endpoint deployment
 type EndpointDeploymentConfig struct {
-	Workspace   osutil.ExpandableString `yaml:"workspace,omitempty"`
 	Environment *ComponentConfig        `yaml:"environment,omitempty"`
 	Model       *ComponentConfig        `yaml:"model,omitempty"`
 	Flow        *ComponentConfig        `yaml:"flow,omitempty"`
 	Deployment  *DeploymentConfig       `yaml:"deployment,omitempty"`
+	Workspace   osutil.ExpandableString `yaml:"workspace,omitempty"`
 }
 
 // Flow is a configuration to defined a Prompt flow component
 type Flow struct {
+	Tags        map[string]string `json:"tags"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Type        string            `json:"type"`
 	Path        string            `json:"path"`
 	DisplayName string            `json:"display_name"`
-	Tags        map[string]string `json:"tags"`
 }
 
 // Scope is a context based structure to define the Azure scope of a AI component

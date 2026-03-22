@@ -25,10 +25,9 @@ const ProxyConfigName = "proxy.config"
 var buildOnce sync.Once
 
 type Recorder struct {
-	opt Options
-
 	cassetteFile string
 	proxyDir     string
+	opt          Options
 }
 
 type Options struct {

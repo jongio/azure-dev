@@ -22,8 +22,6 @@ const (
 
 // UpdateCheckResult contains the result of checking for extension updates
 type UpdateCheckResult struct {
-	// HasUpdate is true if a newer version is available
-	HasUpdate bool
 	// InstalledVersion is the currently installed version
 	InstalledVersion string
 	// LatestVersion is the latest available version
@@ -32,6 +30,8 @@ type UpdateCheckResult struct {
 	ExtensionId string
 	// ExtensionName is the display name of the extension
 	ExtensionName string
+	// HasUpdate is true if a newer version is available
+	HasUpdate bool
 }
 
 // UpdateChecker checks for extension updates and manages warning cool downs

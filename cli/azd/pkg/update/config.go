@@ -157,10 +157,10 @@ type CacheFile struct {
 	Channel string `json:"channel,omitempty"`
 	// Version is the semver of the latest version.
 	Version string `json:"version"`
-	// BuildNumber is the Azure DevOps build ID (used for daily builds).
-	BuildNumber int `json:"buildNumber,omitempty"`
 	// ExpiresOn is the time at which this cached value expires, stored as an RFC3339 timestamp.
 	ExpiresOn string `json:"expiresOn"`
+	// BuildNumber is the Azure DevOps build ID (used for daily builds).
+	BuildNumber int `json:"buildNumber,omitempty"`
 }
 
 const cacheFileName = "update-check.json"

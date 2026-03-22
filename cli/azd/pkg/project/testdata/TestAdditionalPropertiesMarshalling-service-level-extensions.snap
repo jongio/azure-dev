@@ -1,6 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-name: test-service-extension
 services:
     api:
         project: ./src/api
@@ -26,4 +25,5 @@ services:
         deployment:
             region: eastus
             strategy: blue-green
+name: test-service-extension
 

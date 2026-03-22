@@ -39,13 +39,13 @@ import (
 )
 
 type ProvisionFlags struct {
+	global *internal.GlobalCommandOptions
+	*internal.EnvFlag
+	subscription          string
+	location              string
 	noProgress            bool
 	preview               bool
 	ignoreDeploymentState bool
-	subscription          string
-	location              string
-	global                *internal.GlobalCommandOptions
-	*internal.EnvFlag
 }
 
 const (
@@ -129,26 +129,26 @@ func NewProvisionCmd() *cobra.Command {
 }
 
 type ProvisionAction struct {
-	args                []string
+	projectManager  project.ProjectManager
+	resourceManager project.ResourceManager
+	envManager      environment.Manager
+	formatter       output.Formatter
+	writer          io.Writer
+	console         input.Console
+	// Dependencies for creating per-layer provisioning managers in parallel provisioning.
+	serviceLocator      ioc.ServiceLocator
+	fileShareService    storage.FileShareService
 	flags               *ProvisionFlags
 	provisionManager    *provisioning.Manager
-	projectManager      project.ProjectManager
-	resourceManager     project.ResourceManager
 	env                 *environment.Environment
-	envManager          environment.Manager
-	formatter           output.Formatter
 	projectConfig       *project.ProjectConfig
-	writer              io.Writer
-	console             input.Console
 	subManager          *account.SubscriptionsManager
 	importManager       *project.ImportManager
 	alphaFeatureManager *alpha.FeatureManager
+	defaultProvider     provisioning.DefaultProviderResolver
+	cloud               *cloud.Cloud
 	portalUrlBase       string
-	// Dependencies for creating per-layer provisioning managers in parallel provisioning.
-	serviceLocator   ioc.ServiceLocator
-	defaultProvider  provisioning.DefaultProviderResolver
-	fileShareService storage.FileShareService
-	cloud            *cloud.Cloud
+	args                []string
 }
 
 func NewProvisionAction(
@@ -308,8 +308,7 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 		}
 	}
 
-	allSkipped := true
-	parallelDone := false
+	var allSkipped bool
 
 	// Route to parallel provisioning when the alpha feature is enabled,
 	// there are multiple layers, and we're not in preview mode.
@@ -325,6 +324,8 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 
 		// Output JSON with timing data for the parallel path.
 		// Uses the shared provisionManager (initialized for layer[0]) for state.
+		// NOTE: The parallel path uses ProvisionResult (with durationMs) intentionally —
+		// this is new behavior behind the provision.parallel alpha feature flag.
 		if p.formatter.Kind() == output.JsonFormat {
 			stateResult, err := p.provisionManager.State(ctx, nil)
 			if err != nil {
@@ -342,15 +343,12 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 					"deployment succeeded but the deployment result could not be displayed: %w", err)
 			}
 		}
-
-		parallelDone = true
-	}
-
-	if !parallelDone {
-	for i, layer := range layers {
-		layer.IgnoreDeploymentState = p.flags.ignoreDeploymentState
-		if err := p.provisionManager.Initialize(ctx, p.projectConfig.Path, layer); err != nil {
-			return nil, fmt.Errorf("initializing provisioning manager: %w", err)
+	} else {
+		// Sequential provisioning path — the original behavior.
+		var seqErr error
+		allSkipped, seqErr = p.provisionLayersSequential(ctx, layers, startTime, previewMode)
+		if seqErr != nil {
+			return nil, seqErr
 		}
 
 		if i == 0 && p.subManager != nil { // only display once
@@ -407,78 +405,7 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 
 		// Do not raise pre/postprovision events in preview mode
 		if previewMode {
-			deployPreviewResult, err = p.provisionManager.Preview(ctx)
-		} else {
-			err = p.projectConfig.Invoke(ctx, project.ProjectEventProvision, projectEventArgs, func() error {
-				var err error
-				deployResult, err = p.provisionManager.Deploy(ctx)
-				return err
-			})
-		}
-
-		if err != nil {
-			if p.formatter.Kind() == output.JsonFormat {
-				stateResult, err := p.provisionManager.State(ctx, nil)
-				if err != nil {
-					return nil, fmt.Errorf(
-						"deployment failed and the deployment result is unavailable: %w",
-						multierr.Combine(err, err),
-					)
-				}
-
-				provisionResult := ProvisionResult{
-					State:      provisioning.NewEnvRefreshResultFromState(stateResult.State),
-					DurationMs: time.Since(startTime).Milliseconds(),
-				}
-
-				if err := p.formatter.Format(provisionResult, p.writer, nil); err != nil {
-					return nil, fmt.Errorf(
-						"deployment failed and the deployment result could not be displayed: %w",
-						multierr.Combine(err, err),
-					)
-				}
-			}
-
-			//if user don't have access to openai
-			errorMsg := err.Error()
-			if strings.Contains(errorMsg, specialFeatureOrQuotaIdRequired) && strings.Contains(errorMsg, "OpenAI") {
-				requestAccessLink := "https://go.microsoft.com/fwlink/?linkid=2259205&clcid=0x409"
-				return nil, &internal.ErrorWithSuggestion{
-					Err: err,
-					Suggestion: "\nSuggested Action: The selected subscription does not have access to" +
-						" Azure OpenAI Services. Please visit " + output.WithLinkFormat("%s", requestAccessLink) +
-						" to request access.",
-				}
-			}
-
-			if strings.Contains(errorMsg, AINotValid) &&
-				strings.Contains(errorMsg, openAIsubscriptionNoQuotaId) {
-				return nil, &internal.ErrorWithSuggestion{
-					Suggestion: "\nSuggested Action: The selected " +
-						"subscription has not been enabled for use of Azure AI service and does not have quota for " +
-						"any pricing tiers. Please visit " + output.WithLinkFormat("%s", p.portalUrlBase) +
-						" and select 'Create' on specific services to request access.",
-					Err: err,
-				}
-			}
-
-			//if user haven't agree to Responsible AI terms
-			if strings.Contains(errorMsg, responsibleAITerms) {
-				return nil, &internal.ErrorWithSuggestion{
-					Suggestion: "\nSuggested Action: Please visit azure portal in " +
-						output.WithLinkFormat("%s", p.portalUrlBase) + ". Create the resource in azure portal " +
-						"to go through Responsible AI terms, and then delete it. " +
-						"After that, run 'azd provision' again",
-					Err: err,
-				}
-			}
-
-			return nil, fmt.Errorf("deployment failed: %w", err)
-		}
-
-		if previewMode {
-			p.console.MessageUxItem(ctx, deployResultToUx(deployPreviewResult))
-
+			// provisionLayersSequential already printed the preview UX items.
 			return &actions.ActionResult{
 				Message: &actions.ResultMessage{
 					Header: fmt.Sprintf(
@@ -552,7 +479,6 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 			}
 		}
 	}
-	} // end sequential path
 
 	if allSkipped {
 		return &actions.ActionResult{
@@ -606,10 +532,55 @@ func (s *syncEnvManager) SaveWithOptions(
 	return s.Manager.SaveWithOptions(ctx, env, options)
 }
 
+// syncConsole wraps input.Console with a mutex around all write-path methods
+// (Message, MessageUxItem, ShowSpinner, StopSpinner, WarnForFeature, EnsureBlankLine)
+// to prevent data races when multiple goroutines write to the console concurrently.
+// Read-only and prompt methods delegate to the embedded Console without synchronization.
+type syncConsole struct {
+	input.Console
+	mu sync.Mutex
+}
+
+func (s *syncConsole) Message(ctx context.Context, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.Message(ctx, message)
+}
+
+func (s *syncConsole) MessageUxItem(ctx context.Context, item ux.UxItem) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.MessageUxItem(ctx, item)
+}
+
+func (s *syncConsole) ShowSpinner(ctx context.Context, title string, format input.SpinnerUxType) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.ShowSpinner(ctx, title, format)
+}
+
+func (s *syncConsole) StopSpinner(ctx context.Context, lastMessage string, format input.SpinnerUxType) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.StopSpinner(ctx, lastMessage, format)
+}
+
+func (s *syncConsole) WarnForFeature(ctx context.Context, id alpha.FeatureId) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.WarnForFeature(ctx, id)
+}
+
+func (s *syncConsole) EnsureBlankLine(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Console.EnsureBlankLine(ctx)
+}
+
 // layerResult holds the outcome of a single layer's provisioning.
 type layerResult struct {
-	layer   provisioning.Options
 	deploy  *provisioning.DeployResult
+	layer   provisioning.Options
 	skipped bool
 }
 
@@ -635,14 +606,23 @@ func (p *ProvisionAction) provisionLayersParallel(
 	p.displaySubscriptionAndLocation(ctx)
 
 	safeEnvManager := &syncEnvManager{Manager: p.envManager}
+	safeConsole := &syncConsole{Console: p.console}
 
 	results := make([]layerResult, len(layers))
 	g, gCtx := errgroup.WithContext(ctx)
+
+	// Collect ALL errors from goroutines, not just the first.
+	// errgroup.Wait() returns only the first non-nil error; we also accumulate
+	// errors so that if multiple layers fail, all failures are reported.
+	var errsMu sync.Mutex
+	var errs []error
 
 	// Optional concurrency limit from env var (mirrors deploy.parallel pattern).
 	if limit := os.Getenv("AZD_PROVISION_CONCURRENCY"); limit != "" {
 		if n, err := strconv.Atoi(limit); err == nil && n > 0 {
 			g.SetLimit(n)
+		} else {
+			log.Printf("invalid AZD_PROVISION_CONCURRENCY value %q: %v", limit, err)
 		}
 	}
 
@@ -650,18 +630,22 @@ func (p *ProvisionAction) provisionLayersParallel(
 		layer.IgnoreDeploymentState = p.flags.ignoreDeploymentState
 
 		g.Go(func() error {
-			result, err := p.provisionSingleLayer(gCtx, layer, safeEnvManager)
+			result, err := p.provisionSingleLayer(gCtx, layer, safeEnvManager, safeConsole)
 			results[i] = result
 			if err != nil {
+				errsMu.Lock()
+				errs = append(errs, err)
+				errsMu.Unlock()
 				return err
 			}
 			return nil
 		})
 	}
 
-	if err := g.Wait(); err != nil {
-		// At least one layer failed. Apply error suggestions matching the sequential path.
-		return false, p.wrapProvisionError(err)
+	// Wait preserves errgroup's context cancellation. Then combine all collected errors.
+	_ = g.Wait()
+	if combined := multierr.Combine(errs...); combined != nil {
+		return false, p.wrapProvisionError(combined)
 	}
 
 	// All layers succeeded. Merge deployment outputs into the real environment and
@@ -713,11 +697,13 @@ func (p *ProvisionAction) provisionLayersParallel(
 
 // provisionSingleLayer provisions one infrastructure layer using a dedicated Manager
 // and a cloned Environment. The syncEnvManager serializes .env file writes across
-// concurrent goroutines. This helper is called from provisionLayersParallel.
+// concurrent goroutines. The console parameter should be a syncConsole when called
+// from the parallel path. This helper is called from provisionLayersParallel.
 func (p *ProvisionAction) provisionSingleLayer(
 	ctx context.Context,
 	layer provisioning.Options,
 	safeEnvManager *syncEnvManager,
+	console input.Console,
 ) (layerResult, error) {
 	// Create a per-layer Environment clone so concurrent DotenvSet calls
 	// from Manager.Deploy → UpdateEnvironment don't race on the same map.
@@ -726,12 +712,20 @@ func (p *ProvisionAction) provisionSingleLayer(
 	// Create a dedicated Manager for this layer. The syncEnvManager serializes
 	// .env file writes; each Manager's internal UpdateEnvironment writes to its
 	// own cloned env and then calls Save through the serialized wrapper.
+	// The console parameter is passed to the Manager so its internal console
+	// calls are also synchronized when running in parallel.
+	//
+	// Thread-safety of serviceLocator: The ioc.NestedContainer is initialized once
+	// during application startup. By the time parallel provisioning runs, the container
+	// is fully populated and only Resolve() (read path) is called concurrently.
+	// The underlying golobby/container uses a read-after-init pattern with map lookups;
+	// concurrent reads without writes are safe in Go. No registration (write) occurs here.
 	mgr := provisioning.NewManager(
 		p.serviceLocator,
 		p.defaultProvider,
 		safeEnvManager,
 		layerEnv,
-		p.console,
+		console,
 		p.alphaFeatureManager,
 		p.fileShareService,
 		p.cloud,
@@ -742,12 +736,12 @@ func (p *ProvisionAction) provisionSingleLayer(
 	}
 
 	if layer.Name != "" {
-		p.console.Message(ctx, fmt.Sprintf("Layer: %s", output.WithHighLightFormat(layer.Name)))
+		console.Message(ctx, fmt.Sprintf("Layer: %s", output.WithHighLightFormat(layer.Name)))
 	}
-	p.console.Message(ctx, "")
+	console.Message(ctx, "")
 
 	if p.alphaFeatureManager.IsEnabled(azapi.FeatureDeploymentStacks) {
-		p.console.WarnForFeature(ctx, azapi.FeatureDeploymentStacks)
+		console.WarnForFeature(ctx, azapi.FeatureDeploymentStacks)
 	}
 
 	projectEventArgs := project.ProjectLifecycleEventArgs{
@@ -774,6 +768,142 @@ func (p *ProvisionAction) provisionSingleLayer(
 		result.skipped = deployResult.SkippedReason == provisioning.DeploymentStateSkipped
 	}
 	return result, nil
+}
+
+// provisionLayersSequential provisions infrastructure layers one at a time.
+// This is the original provisioning path used when parallel provisioning is disabled
+// or not applicable (single layer, preview mode).
+//
+// The method preserves the original --output json contract: it emits EnvRefreshResult
+// directly (without the ProvisionResult wrapper used by the parallel path) so that
+// existing automation consuming the JSON output is not broken.
+func (p *ProvisionAction) provisionLayersSequential(
+	ctx context.Context,
+	layers []provisioning.Options,
+	startTime time.Time,
+	previewMode bool,
+) (bool, error) {
+	allSkipped := true
+
+	for i, layer := range layers {
+		layer.IgnoreDeploymentState = p.flags.ignoreDeploymentState
+		if err := p.provisionManager.Initialize(ctx, p.projectConfig.Path, layer); err != nil {
+			return false, fmt.Errorf("initializing provisioning manager: %w", err)
+		}
+
+		if i == 0 { // only display once
+			// Get Subscription to Display in Command Title Note
+			// Subscription and Location are ONLY displayed when they are available (found from env),
+			// otherwise, this message is not displayed.
+			// This needs to happen after the provisionManager initializes to make sure the env is
+			// ready for the provisioning provider
+			p.displaySubscriptionAndLocation(ctx)
+		} else {
+			// separation between each layer
+			p.console.Message(ctx, "")
+		}
+
+		if layer.Name != "" {
+			p.console.Message(ctx, fmt.Sprintf("Layer: %s", output.WithHighLightFormat(layer.Name)))
+		}
+		p.console.Message(ctx, "")
+
+		var deployResult *provisioning.DeployResult
+		var deployPreviewResult *provisioning.DeployPreviewResult
+		var err error
+
+		projectEventArgs := project.ProjectLifecycleEventArgs{
+			Project: p.projectConfig,
+		}
+
+		if p.alphaFeatureManager.IsEnabled(azapi.FeatureDeploymentStacks) {
+			p.console.WarnForFeature(ctx, azapi.FeatureDeploymentStacks)
+		}
+
+		// Do not raise pre/postprovision events in preview mode
+		if previewMode {
+			deployPreviewResult, err = p.provisionManager.Preview(ctx)
+		} else {
+			err = p.projectConfig.Invoke(ctx, project.ProjectEventProvision, projectEventArgs, func() error {
+				var err error
+				deployResult, err = p.provisionManager.Deploy(ctx)
+				return err
+			})
+		}
+
+		if err != nil {
+			// Sequential path: emit EnvRefreshResult directly (preserves backward compat).
+			if p.formatter.Kind() == output.JsonFormat {
+				stateResult, stateErr := p.provisionManager.State(ctx, nil)
+				if stateErr != nil {
+					return false, fmt.Errorf(
+						"deployment failed and the deployment result is unavailable: %w",
+						multierr.Combine(err, stateErr),
+					)
+				}
+
+				envResult := provisioning.NewEnvRefreshResultFromState(stateResult.State)
+				if fmtErr := p.formatter.Format(envResult, p.writer, nil); fmtErr != nil {
+					return false, fmt.Errorf(
+						"deployment failed and the deployment result could not be displayed: %w",
+						multierr.Combine(err, fmtErr),
+					)
+				}
+			}
+
+			return false, p.wrapProvisionError(err)
+		}
+
+		if previewMode {
+			p.console.MessageUxItem(ctx, deployResultToUx(deployPreviewResult))
+			// Return allSkipped=false; the caller handles the preview ActionResult.
+			return false, nil
+		}
+
+		skipped := deployResult.SkippedReason == provisioning.DeploymentStateSkipped
+		allSkipped = allSkipped && skipped
+		if skipped {
+			// Simply continue here; message is printed in the provider implementation
+			continue
+		}
+
+		servicesStable, err := p.importManager.ServiceStable(ctx, p.projectConfig)
+		if err != nil {
+			return false, err
+		}
+
+		for _, svc := range servicesStable {
+			eventArgs := project.ServiceLifecycleEventArgs{
+				Project:        p.projectConfig,
+				Service:        svc,
+				ServiceContext: project.NewServiceContext(),
+				Args: map[string]any{
+					"bicepOutput": deployResult.Deployment.Outputs,
+				},
+			}
+
+			if err := svc.RaiseEvent(ctx, project.ServiceEventEnvUpdated, eventArgs); err != nil {
+				return false, err
+			}
+		}
+
+		// Sequential path: emit EnvRefreshResult directly (preserves backward compat).
+		if p.formatter.Kind() == output.JsonFormat {
+			stateResult, err := p.provisionManager.State(ctx, nil)
+			if err != nil {
+				return false, fmt.Errorf(
+					"deployment succeeded but the deployment result is unavailable: %w", err)
+			}
+
+			envResult := provisioning.NewEnvRefreshResultFromState(stateResult.State)
+			if err := p.formatter.Format(envResult, p.writer, nil); err != nil {
+				return false, fmt.Errorf(
+					"deployment succeeded but the deployment result could not be displayed: %w", err)
+			}
+		}
+	}
+
+	return allSkipped, nil
 }
 
 // displaySubscriptionAndLocation shows the Azure subscription and location details.

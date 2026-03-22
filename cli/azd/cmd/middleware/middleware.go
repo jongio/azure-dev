@@ -31,12 +31,13 @@ var childActionKey childActionKeyType = "child-action"
 type Options struct {
 	container *ioc.NestedContainer
 
+	Flags       *pflag.FlagSet
+	Annotations map[string]string
+
 	CommandPath string
 	Name        string
 	Aliases     []string
-	Flags       *pflag.FlagSet
 	Args        []string
-	Annotations map[string]string
 }
 
 // Sets the container to be used for resolving middleware components
@@ -50,8 +51,8 @@ type NextFn func(ctx context.Context) (*actions.ActionResult, error)
 // Middleware runner stores middleware registrations and orchestrates the
 // invocation of middleware components and actions.
 type MiddlewareRunner struct {
-	chain     []string
 	container *ioc.NestedContainer
+	chain     []string
 }
 
 // Creates a new middleware runner

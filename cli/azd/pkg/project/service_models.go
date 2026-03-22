@@ -41,8 +41,8 @@ type ServiceLifecycleEventArgs struct {
 // ServiceProgress represents an incremental progress message
 // during a service operation such as restore, build, package & deploy
 type ServiceProgress struct {
-	Message   string
 	Timestamp time.Time
+	Message   string
 }
 
 // NewServiceProgress is a helper method to create a new

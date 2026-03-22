@@ -15,18 +15,18 @@ import (
 )
 
 type InvokeOptions struct {
-	Args        []string
-	Env         []string
 	StdIn       io.Reader
 	StdOut      io.Writer
 	StdErr      io.Writer
+	Cwd         string
+	Environment string
+	Args        []string
+	Env         []string
 	Interactive bool
 
 	// Global AZD flags to propagate as environment variables to extension processes.
-	Debug       bool
-	NoPrompt    bool
-	Cwd         string
-	Environment string
+	Debug    bool
+	NoPrompt bool
 }
 
 type Runner struct {
@@ -97,8 +97,8 @@ func (r *Runner) Invoke(ctx context.Context, extension *Extension, options *Invo
 
 // ExtensionRunError represents an error that occurred while running an extension.
 type ExtensionRunError struct {
-	ExtensionId string
 	Err         error
+	ExtensionId string
 }
 
 func (e *ExtensionRunError) Error() string {

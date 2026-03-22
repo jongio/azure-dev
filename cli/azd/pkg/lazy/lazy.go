@@ -10,12 +10,12 @@ type InitializerFn[T comparable] func() (T, error)
 // A data structure that will lazily load an instance of the underlying type
 // from the specified initializer
 type Lazy[T comparable] struct {
-	initialized  bool
-	initializer  InitializerFn[T]
 	value        T
 	error        error
+	initializer  InitializerFn[T]
 	getValueLock sync.Mutex
 	setValueLock sync.Mutex
+	initialized  bool
 }
 
 // Creates a new Lazy[T]

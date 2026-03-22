@@ -15,24 +15,24 @@ import (
 
 // StateCache represents cached Azure resource information for an environment
 type StateCache struct {
-	// Version of the cache format
-	Version int `json:"version"`
 	// Timestamp when the cache was last updated
 	UpdatedAt time.Time `json:"updatedAt"`
+	// Service resources mapped by service name
+	ServiceResources map[string]ServiceResourceCache `json:"serviceResources,omitempty"`
 	// Subscription ID
 	SubscriptionId string `json:"subscriptionId,omitempty"`
 	// Resource group name
 	ResourceGroupName string `json:"resourceGroupName,omitempty"`
-	// Service resources mapped by service name
-	ServiceResources map[string]ServiceResourceCache `json:"serviceResources,omitempty"`
+	// Version of the cache format
+	Version int `json:"version"`
 }
 
 // ServiceResourceCache represents cached resource information for a service
 type ServiceResourceCache struct {
-	// Resource IDs associated with this service
-	ResourceIds []string `json:"resourceIds,omitempty"`
 	// Ingress URL for the service
 	IngressUrl string `json:"ingressUrl,omitempty"`
+	// Resource IDs associated with this service
+	ResourceIds []string `json:"resourceIds,omitempty"`
 }
 
 const (

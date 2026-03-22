@@ -49,29 +49,6 @@ type InvokeFn func() error
 
 // Azd hook configuration
 type HookConfig struct {
-	// The location of the script hook (file path or inline)
-	location ScriptLocation
-	// When location is `path` a file path must be specified relative to the project or service
-	path string
-	// Stores a value whether or not this hook config has been previously validated
-	validated bool
-	// Stores the working directory set for this hook config
-	cwd string
-	// When location is `inline` a script must be defined inline
-	script string
-	// Indicates if the shell was automatically detected based on OS (used for warnings)
-	usingDefaultShell bool
-
-	// Internal name of the hook running for a given command
-	Name string `yaml:",omitempty"`
-	// The type of script hook (bash or powershell)
-	Shell ShellType `yaml:"shell,omitempty"`
-	// The inline script to execute or path to existing file
-	Run string `yaml:"run,omitempty"`
-	// When set to true will not halt command execution even when a script error occurs.
-	ContinueOnError bool `yaml:"continueOnError,omitempty"`
-	// When set to true will bind the stdin, stdout & stderr to the running console
-	Interactive bool `yaml:"interactive,omitempty"`
 	// When running on windows use this override config
 	Windows *HookConfig `yaml:"windows,omitempty"`
 	// When running on linux/macos use this override config
@@ -79,6 +56,30 @@ type HookConfig struct {
 	// Environment variables in this list are added to the hook script and if the value is a akvs:// reference
 	// it will be resolved to the secret value
 	Secrets map[string]string `yaml:"secrets,omitempty"`
+	// The location of the script hook (file path or inline)
+	location ScriptLocation
+	// When location is `path` a file path must be specified relative to the project or service
+	path string
+	// Stores the working directory set for this hook config
+	cwd string
+	// When location is `inline` a script must be defined inline
+	script string
+
+	// Internal name of the hook running for a given command
+	Name string `yaml:",omitempty"`
+	// The type of script hook (bash or powershell)
+	Shell ShellType `yaml:"shell,omitempty"`
+	// The inline script to execute or path to existing file
+	Run string `yaml:"run,omitempty"`
+	// Stores a value whether or not this hook config has been previously validated
+	validated bool
+	// Indicates if the shell was automatically detected based on OS (used for warnings)
+	usingDefaultShell bool
+
+	// When set to true will not halt command execution even when a script error occurs.
+	ContinueOnError bool `yaml:"continueOnError,omitempty"`
+	// When set to true will bind the stdin, stdout & stderr to the running console
+	Interactive bool `yaml:"interactive,omitempty"`
 }
 
 // Validates and normalizes the hook configuration

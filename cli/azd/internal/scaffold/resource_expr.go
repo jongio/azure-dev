@@ -60,22 +60,22 @@ type LiteralExprData struct {
 }
 
 type Expression struct {
-	// The kind of expression.
-	Kind Kind
 
 	// The data associated with the kind of expression.
 	Data any
-
-	// The finalized value of the expression.
-	Value string
 
 	// The template that this expression is a part of.
 	// Can be nil if the expression is not part of a template, and if so Value will store the final value.
 	t *tmpl
 
+	// The finalized value of the expression.
+	Value string
+
 	// The start and end positions of the expression in the template.
 	Start int
 	End   int
+	// The kind of expression.
+	Kind Kind
 }
 
 func (e *Expression) Replace(val string) {
@@ -98,14 +98,14 @@ type parser struct {
 	// The string to parse.
 	s string
 
-	// The terminal byte that ends the expression.
-	terminal byte
+	// The seen buffer.
+	seen bytes.Buffer
 
 	// The current cursor position.
 	cursor int
 
-	// The seen buffer.
-	seen bytes.Buffer
+	// The terminal byte that ends the expression.
+	terminal byte
 }
 
 func (p *parser) peek() byte {
@@ -266,10 +266,10 @@ func (p *parser) parseExpression() (*Expression, error) {
 type tmpl struct {
 	// raw is the pointer to the raw string with expressions
 	raw *string
-	// rawOffset is the offset of the raw string due to replacements from expressions
-	rawOffset int
 	// expressions are the parsed expressions in the template
 	expressions []*Expression
+	// rawOffset is the offset of the raw string due to replacements from expressions
+	rawOffset int
 }
 
 func (t *tmpl) Replace(expr *Expression, val string) {

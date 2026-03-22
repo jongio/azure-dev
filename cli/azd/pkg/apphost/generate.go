@@ -311,10 +311,10 @@ func BicepTemplate(name string, manifest *Manifest, options AppHostOptions) (*me
 	// bicepContext merges the bicepContext with the inputs from the manifest to execute the main.bicep template
 	// this allows the template to access the auto-gen inputs from the generator
 	type genInput struct {
-		Name   string
-		Secret bool
-		Type   string
 		Value  *string
+		Name   string
+		Type   string
+		Secret bool
 	}
 	type autoGenInput struct {
 		genInput
@@ -523,12 +523,13 @@ type infraGenerator struct {
 	annotatedStrings map[string]annotatedString
 	resourceTypes    map[string]string
 
-	bicepContext                 genBicepTemplateContext
 	containerAppTemplateContexts map[string]genContainerAppManifestTemplateContext
 	allServicesIngress           map[string]ingressDetails
 	// works for container.v0, container.v1 and dockerfile.v0
 	buildContainers map[string]genBuildContainer
 	options         infraGeneratorOptions
+
+	bicepContext genBicepTemplateContext
 }
 
 type infraGeneratorOptions struct {

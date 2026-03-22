@@ -16,31 +16,29 @@ import (
 
 // externalPromptClient is a client for the external prompt service, as described in [../../docs/external-prompt.md].
 type externalPromptClient struct {
+	transporter policy.Transporter
 	endpoint    string
 	key         string
-	transporter policy.Transporter
 }
 
 type promptOptions struct {
-	Type    string               `json:"type"`
 	Options promptOptionsOptions `json:"options"`
+	Type    string               `json:"type"`
 }
 
 type promptChoice struct {
-	Value  string  `json:"value"`
 	Detail *string `json:"detail,omitempty"`
+	Value  string  `json:"value"`
 }
 
 type promptOptionsOptions struct {
-	Message      string          `json:"message"`
-	Help         string          `json:"help"`
 	Choices      *[]promptChoice `json:"choices,omitempty"`
 	DefaultValue *any            `json:"defaultValue,omitempty"`
+	Message      string          `json:"message"`
+	Help         string          `json:"help"`
 }
 
 type promptResponse struct {
-	// Status is one of "success", "error", or "cancelled".
-	Status string `json:"status"`
 
 	// These fields are set when status is "success"
 
@@ -51,6 +49,8 @@ type promptResponse struct {
 
 	// Message is a human-readable error message.
 	Message *string `json:"message,omitempty"`
+	// Status is one of "success", "error", or "cancelled".
+	Status string `json:"status"`
 }
 
 type externalPromptDialogRequest struct {
@@ -60,24 +60,24 @@ type externalPromptDialogRequest struct {
 }
 
 type externalPromptDialogPrompt struct {
+	Description  *string                       `json:"description,omitempty"`
+	DefaultValue *string                       `json:"defaultValue,omitempty"`
+	Choices      *[]externalPromptDialogChoice `json:"choices,omitempty"`
 	ID           string                        `json:"id"`
 	Kind         string                        `json:"kind"`
 	DisplayName  string                        `json:"displayName"`
-	Description  *string                       `json:"description,omitempty"`
-	DefaultValue *string                       `json:"defaultValue,omitempty"`
 	Required     bool                          `json:"required"`
-	Choices      *[]externalPromptDialogChoice `json:"choices,omitempty"`
 }
 
 type externalPromptDialogChoice struct {
-	Value       string  `json:"value"`
 	Description *string `json:"description,omitempty"`
+	Value       string  `json:"value"`
 }
 
 type externalPromptDialogResponse struct {
-	Result  string                               `json:"result"`
 	Message *string                              `json:"message,omitempty"`
 	Inputs  *[]externalPromptDialogResponseInput `json:"inputs,omitempty"`
+	Result  string                               `json:"result"`
 }
 
 type externalPromptDialogResponseInput struct {

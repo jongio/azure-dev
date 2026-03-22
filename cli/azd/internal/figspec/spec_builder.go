@@ -21,8 +21,8 @@ type SpecBuilder struct {
 	argsProvider              CustomArgsProvider
 	flagArgsProvider          CustomFlagArgsProvider
 	extensionMetadataProvider ExtensionMetadataProvider
-	includeHidden             bool
 	globalFlagNames           map[string]bool // Flag names that are global (persistent + non-persistent)
+	includeHidden             bool
 }
 
 // NewSpecBuilder creates a new Fig spec builder

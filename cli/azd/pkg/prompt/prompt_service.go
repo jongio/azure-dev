@@ -56,14 +56,14 @@ func formatAutoSelectedSubscriptionMessage(subscription *account.Subscription, h
 type ResourceOptions struct {
 	// ResourceType is the type of resource to select.
 	ResourceType *azapi.AzureResourceType
-	// Kinds is a list of resource kinds to filter by.
-	Kinds []string
-	// ResourceTypeDisplayName is the display name of the resource type.
-	ResourceTypeDisplayName string
 	// SelectorOptions contains options for the resource selector.
 	SelectorOptions *SelectOptions
 	// Selected is a function that determines if a resource is selected
 	Selected func(resource *azapi.ResourceExtended) bool
+	// ResourceTypeDisplayName is the display name of the resource type.
+	ResourceTypeDisplayName string
+	// Kinds is a list of resource kinds to filter by.
+	Kinds []string
 }
 
 // CustomResourceOptions contains options for prompting the user to select a custom resource.
@@ -90,10 +90,16 @@ type ResourceGroupOptions struct {
 
 // SelectOptions contains options for prompting the user to select a resource.
 type SelectOptions struct {
+	// Writer is the writer to use for output.
+	Writer io.Writer
 	// ForceNewResource specifies whether to force the user to create a new resource.
 	ForceNewResource *bool
 	// AllowNewResource specifies whether to allow the user to create a new resource.
 	AllowNewResource *bool
+	// DisplayNumbers specifies whether to display numbers next to the choices.
+	DisplayNumbers *bool
+	// EnableFiltering specifies whether to enable filtering of choices.
+	EnableFiltering *bool
 	// NewResourceMessage is the message to display to the user when creating a new resource.
 	NewResourceMessage string
 	// Message is the message to display to the user.
@@ -102,16 +108,10 @@ type SelectOptions struct {
 	HelpMessage string
 	// LoadingMessage is the loading message to display to the user.
 	LoadingMessage string
-	// DisplayNumbers specifies whether to display numbers next to the choices.
-	DisplayNumbers *bool
-	// DisplayCount is the number of choices to display at a time.
-	DisplayCount int
 	// Hint is the hint to display to the user.
 	Hint string
-	// EnableFiltering specifies whether to enable filtering of choices.
-	EnableFiltering *bool
-	// Writer is the writer to use for output.
-	Writer io.Writer
+	// DisplayCount is the number of choices to display at a time.
+	DisplayCount int
 }
 
 type AuthManager interface {

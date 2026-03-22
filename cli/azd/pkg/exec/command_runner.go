@@ -278,12 +278,12 @@ func appendEnv(env []string) []string {
 
 // logBuilder builds messages for running of commands.
 type logBuilder struct {
-	args []string
-	env  []string
+	err error
 
 	// Either result or err is expected to be set, but not both.
 	result *RunResult
-	err    error
+	args   []string
+	env    []string
 }
 
 // Write writes the log message to the log file. debug enables debug logging.

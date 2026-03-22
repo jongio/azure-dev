@@ -6,11 +6,11 @@ package environment
 import "maps"
 
 type TargetResource struct {
+	metadata          map[string]string
 	subscriptionId    string
 	resourceGroupName string
 	resourceName      string
 	resourceType      string
-	metadata          map[string]string
 }
 
 func NewTargetResource(

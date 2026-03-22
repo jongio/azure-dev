@@ -12,7 +12,10 @@ import (
 )
 
 type Template struct {
-	Id string `json:"id"`
+
+	// Additional metadata about the template
+	Metadata Metadata `json:"metadata"`
+	Id       string   `json:"id"`
 
 	// Name is the friendly short name of the template.
 	Name string `json:"name"`
@@ -34,9 +37,6 @@ type Template struct {
 
 	// A list of tags associated with the template
 	Tags []string `json:"tags"`
-
-	// Additional metadata about the template
-	Metadata Metadata `json:"metadata"`
 }
 
 // Metadata contains additional metadata about the template

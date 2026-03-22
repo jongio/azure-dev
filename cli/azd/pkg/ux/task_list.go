@@ -21,16 +21,16 @@ import (
 
 // TaskListOptions represents the options for the TaskList component.
 type TaskListOptions struct {
-	ContinueOnError bool
 	// The writer to use for output (default: os.Stdout)
 	Writer             io.Writer
-	MaxConcurrentAsync int
 	SuccessStyle       string
 	ErrorStyle         string
 	WarningStyle       string
 	RunningStyle       string
 	SkippedStyle       string
 	PendingStyle       string
+	MaxConcurrentAsync int
+	ContinueOnError    bool
 }
 
 var DefaultTaskListOptions TaskListOptions = TaskListOptions{
@@ -48,23 +48,24 @@ var DefaultTaskListOptions TaskListOptions = TaskListOptions{
 
 // TaskList is a component for managing a list of tasks.
 type TaskList struct {
-	canvas    Canvas
-	waitGroup sync.WaitGroup
-	options   *TaskListOptions
-	allTasks  []*Task
-	syncTasks []*Task // Queue for synchronous tasks
-
-	completed      int32
-	syncMutex      sync.Mutex // Mutex to handle sync task queue safely
-	errorMutex     sync.Mutex // Mutex to handle errors slice safely
+	canvas         Canvas
+	options        *TaskListOptions
 	asyncSemaphore chan struct{}
-	errors         []error
+	allTasks       []*Task
+	syncTasks      []*Task // Queue for synchronous tasks
+
+	errors     []error
+	waitGroup  sync.WaitGroup
+	syncMutex  sync.Mutex // Mutex to handle sync task queue safely
+	errorMutex sync.Mutex // Mutex to handle errors slice safely
+
+	completed int32
 }
 
 // TaskOptions represents the options for the Task component.
 type TaskOptions struct {
-	Title  string
 	Action func(SetProgressFunc) (TaskState, error)
+	Title  string
 	Async  bool
 }
 
@@ -73,13 +74,13 @@ type SetProgressFunc func(string)
 
 // Task represents a task in the task list.
 type Task struct {
-	Title     string
-	Action    func(SetProgressFunc) (TaskState, error)
-	State     TaskState
 	Error     error
-	progress  string
+	Action    func(SetProgressFunc) (TaskState, error)
 	startTime *time.Time
 	endTime   *time.Time
+	Title     string
+	progress  string
+	State     TaskState
 }
 
 // TaskState represents the state of a task.

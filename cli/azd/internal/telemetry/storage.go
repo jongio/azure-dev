@@ -42,23 +42,24 @@ type Queue interface {
 // Items can be read by Peek, which will read the next available item.
 // Once the item is processed, consumers are responsible for calling Remove to remove the item from the queue.
 type StorageQueue struct {
+
+	// Standard time library clock, unless mocked in tests
+	clock               clock.Clock
 	folder              string
 	itemFileExtension   string
 	itemFileMaxTimeKept time.Duration
-
-	// Standard time library clock, unless mocked in tests
-	clock clock.Clock
 }
 
 type StoredItem struct {
-	// Number of retries attempted
-	retryCount int
+
+	// File name of the stored item
+	fileName string
 
 	// Message in the item
 	message []byte
 
-	// File name of the stored item
-	fileName string
+	// Number of retries attempted
+	retryCount int
 }
 
 func (itm *StoredItem) RetryCount() int {
@@ -70,9 +71,9 @@ func (itm *StoredItem) Message() []byte {
 }
 
 type itemEntry struct {
-	name        string
 	readyTime   time.Time
 	fileModTime time.Time
+	name        string
 	retryCount  int
 }
 

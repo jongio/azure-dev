@@ -21,6 +21,8 @@ type PromptOptions struct {
 	Writer io.Writer
 	// The reader to use for input (default: os.Stdin)
 	Reader io.Reader
+	// The optional validation function to use
+	ValidationFn func(string) (bool, string)
 	// The default value to use for the prompt (default: "")
 	DefaultValue string
 	// The message to display before the prompt
@@ -32,20 +34,18 @@ type PromptOptions struct {
 	Hint string
 	// The optional placeholder text to display when the value is empty (default: "")
 	PlaceHolder string
-	// The optional validation function to use
-	ValidationFn func(string) (bool, string)
 	// The optional validation message to display when validation fails (default: "Invalid input")
 	ValidationMessage string
 	// The optional validation message to display when the value is empty and required (default: "This field is required")
 	RequiredMessage string
+	// The optional help message that displays on the next line (default: "")
+	HelpMessageOnNextLine string
 	// Whether or not the prompt is required (default: false)
 	Required bool
 	// Whether or not to clear the prompt after completion (default: false)
 	ClearOnCompletion bool
 	// Whether or not to capture hint keys (default: true)
 	IgnoreHintKeys bool
-	// The optional help message that displays on the next line (default: "")
-	HelpMessageOnNextLine string
 }
 
 var DefaultPromptOptions PromptOptions = PromptOptions{
@@ -64,18 +64,18 @@ var DefaultPromptOptions PromptOptions = PromptOptions{
 
 // Prompt is a component for prompting the user for input.
 type Prompt struct {
-	input *internal.Input
+	canvas Canvas
+	input  *internal.Input
 
-	canvas             Canvas
 	options            *PromptOptions
-	hasValidationError bool
+	cursorPosition     *CursorPosition
 	value              string
+	validationMessage  string
+	hasValidationError bool
 	showHelp           bool
 	complete           bool
 	submitted          bool
-	validationMessage  string
 	cancelled          bool
-	cursorPosition     *CursorPosition
 }
 
 // NewPrompt creates a new Prompt instance.

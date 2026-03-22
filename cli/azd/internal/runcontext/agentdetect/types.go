@@ -69,10 +69,10 @@ type AgentInfo struct {
 	Name string
 	// Source indicates how the agent was detected.
 	Source DetectionSource
-	// Detected is true if an agent was detected.
-	Detected bool
 	// Details contains additional detection information (e.g., matched env var or process name).
 	Details string
+	// Detected is true if an agent was detected.
+	Detected bool
 }
 
 // NoAgent returns an AgentInfo indicating no agent was detected.

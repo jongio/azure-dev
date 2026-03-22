@@ -59,12 +59,12 @@ func newErrorLine(code string, message string, inner []*DeploymentErrorLine) *De
 }
 
 type AzureDeploymentError struct {
+	Inner error
+
+	Details   *DeploymentErrorLine
 	Json      string
-	Inner     error
 	Title     string
 	Operation DeploymentOperation
-
-	Details *DeploymentErrorLine
 }
 
 func NewAzureDeploymentError(title string, jsonErrorResponse string, operation DeploymentOperation) *AzureDeploymentError {

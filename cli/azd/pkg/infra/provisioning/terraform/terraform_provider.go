@@ -791,12 +791,12 @@ const terraformModeManaged = "managed"
 // terraformResource is the model type for a resource in a terraform state file. The "values"
 // array contains provider specific values (for azurerm, this includes "id" which is the resource id).
 type terraformResource struct {
-	Address      string `json:"address"`
-	ProviderName string `json:"provider_name"`
+	Values       map[string]any `json:"values"`
+	Address      string         `json:"address"`
+	ProviderName string         `json:"provider_name"`
 	// "mode" can be "managed", for resources, or "data", for data resources
-	Mode   string         `json:"mode"`
-	Type   string         `json:"type"`
-	Values map[string]any `json:"values"`
+	Mode string `json:"mode"`
+	Type string `json:"type"`
 }
 
 // terraformChildModule is the model type for a child module in the state file. It may contain

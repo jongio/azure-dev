@@ -124,22 +124,23 @@ func (r ResourceType) AzureResourceType() string {
 }
 
 type ResourceConfig struct {
+	Props any `yaml:"-"`
 	// Reference to the parent project configuration
 	Project *ProjectConfig `yaml:"-"`
+	// The properties for the resource
+	RawProps map[string]yaml.Node `yaml:",inline"`
 	// Type of resource
 	Type ResourceType `yaml:"type"`
 	// The name of the resource
 	Name string `yaml:"name,omitempty"`
-	// The properties for the resource
-	RawProps map[string]yaml.Node `yaml:",inline"`
-	Props    any                  `yaml:"-"`
+	// Resource ID in the project.
+	// This is a virtual field. It is stored as environment state.
+	ResourceId string `yaml:"-"`
+
 	// Relationships to other resources
 	Uses []string `yaml:"uses,omitempty"`
 	// Existing indicates whether the resource is an existing resource.
 	Existing bool `yaml:"existing,omitempty"`
-	// Resource ID in the project.
-	// This is a virtual field. It is stored as environment state.
-	ResourceId string `yaml:"-"`
 
 	// IncludeName indicates whether the `name` field should be included upon serialization.
 	IncludeName bool `yaml:"-"`
@@ -273,15 +274,15 @@ func (r *ResourceConfig) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type ContainerAppProps struct {
-	Port int             `yaml:"port,omitempty"`
 	Env  []ServiceEnvVar `yaml:"env,omitempty"`
+	Port int             `yaml:"port,omitempty"`
 }
 
 type AppServiceProps struct {
-	Port           int               `yaml:"port,omitempty"`
-	Env            []ServiceEnvVar   `yaml:"env,omitempty"`
 	Runtime        AppServiceRuntime `yaml:"runtime,omitempty"`
 	StartupCommand string            `yaml:"startupCommand,omitempty"`
+	Env            []ServiceEnvVar   `yaml:"env,omitempty"`
+	Port           int               `yaml:"port,omitempty"`
 }
 
 type AppServiceRuntimeStack string

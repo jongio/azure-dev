@@ -50,9 +50,9 @@ var buildRecordOnce sync.Once
 
 // The result of calling an azd CLI command
 type CliResult struct {
-	ExitCode int
 	Stdout   string
 	Stderr   string
+	ExitCode int
 }
 
 // The azd CLI.
@@ -61,9 +61,9 @@ type CliResult struct {
 type CLI struct {
 	T                *testing.T
 	WorkingDirectory string
-	Env              []string
 	// Path to the azd binary
 	AzdPath string
+	Env     []string
 }
 
 // Constructs the CLI.
@@ -236,10 +236,10 @@ func (cli *CLI) heartbeat(description string, done <-chan struct{}) {
 }
 
 type logWriter struct {
-	t           *testing.T
-	sb          strings.Builder
-	prefix      string
 	initialTime time.Time
+	t           *testing.T
+	prefix      string
+	sb          strings.Builder
 }
 
 func (l *logWriter) Write(bytes []byte) (n int, err error) {
@@ -339,8 +339,8 @@ func (cred *TestCredential) GetToken(ctx context.Context, options policy.TokenRe
 }
 
 type tokenRequestBody struct {
-	Scopes   []string `json:"scopes"`
 	TenantId string   `json:"tenantId,omitempty"`
+	Scopes   []string `json:"scopes"`
 }
 
 // startTestCredentialServer creates a mock HTTP server that implements the remote credential protocol.

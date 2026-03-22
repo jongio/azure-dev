@@ -16,13 +16,13 @@ import (
 
 // ExtensionContext holds parsed global state available to extension commands.
 type ExtensionContext struct {
-	Debug        bool
-	NoPrompt     bool
+	ctx          context.Context
 	Cwd          string
 	Environment  string
 	OutputFormat string
 
-	ctx context.Context
+	Debug    bool
+	NoPrompt bool
 }
 
 // Context returns the prepared context with tracing and access token metadata.

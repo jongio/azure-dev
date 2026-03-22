@@ -25,18 +25,18 @@ type MultiSelectOptions struct {
 	Writer io.Writer
 	// The reader to use for input (default: os.Stdin)
 	Reader io.Reader
-	// The message to display before the prompt
-	Message string
-	// The available options to display
-	Choices []*MultiSelectChoice
-	// The optional message to display when the user types ? (default: "")
-	HelpMessage string
-	// The maximum number of options to display at one time (default: 6)
-	DisplayCount int
 	// Whether or not to display the number prefix before each option (default: false)
 	DisplayNumbers *bool
 	// Whether or not to disable filtering (default: true)
 	EnableFiltering *bool
+	// The message to display before the prompt
+	Message string
+	// The optional message to display when the user types ? (default: "")
+	HelpMessage string
+	// The available options to display
+	Choices []*MultiSelectChoice
+	// The maximum number of options to display at one time (default: 6)
+	DisplayCount int
 }
 
 var DefaultMultiSelectOptions MultiSelectOptions = MultiSelectOptions{
@@ -54,28 +54,29 @@ type MultiSelectChoice struct {
 }
 
 type indexedMultiSelectChoice struct {
-	Index int
 	*MultiSelectChoice
+	Index int
 }
 
 // Select is a component for prompting the user to select an option from a list.
 type MultiSelect struct {
-	input  *internal.Input
 	cursor internal.Cursor
 	canvas Canvas
 
+	input *internal.Input
+
 	options            *MultiSelectOptions
 	currentIndex       *int // The highlighted row index
-	showHelp           bool
-	complete           bool
+	selectedChoices    map[string]*indexedMultiSelectChoice
+	cursorPosition     *CursorPosition
 	filter             string
+	validationMessage  string
 	choices            []*indexedMultiSelectChoice
 	filteredChoices    []*indexedMultiSelectChoice
-	selectedChoices    map[string]*indexedMultiSelectChoice
+	showHelp           bool
+	complete           bool
 	hasValidationError bool
-	validationMessage  string
 	cancelled          bool
-	cursorPosition     *CursorPosition
 	submitted          bool
 }
 

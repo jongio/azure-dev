@@ -21,14 +21,14 @@ import (
 )
 
 type ExternalServiceTarget struct {
-	extension  *extensions.Extension
+	console   input.Console
+	prompters prompt.Prompter
+	extension *extensions.Extension
+	env       *environment.Environment
+
+	broker     *grpcbroker.MessageBroker[azdext.ServiceTargetMessage]
 	targetName string
 	targetKind ServiceTargetKind
-	console    input.Console
-	prompters  prompt.Prompter
-	env        *environment.Environment
-
-	broker *grpcbroker.MessageBroker[azdext.ServiceTargetMessage]
 }
 
 type TargetResourceResolver interface {

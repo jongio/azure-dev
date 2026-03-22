@@ -148,9 +148,9 @@ func (arl *AzureResourceList) FindByTypeAndName(
 
 // AzureContext contains the Scope and list of Resources from an Azure deployment.
 type AzureContext struct {
-	Scope         AzureScope
-	Resources     *AzureResourceList
 	promptService PromptService
+	Resources     *AzureResourceList
+	Scope         AzureScope
 }
 
 // NewEmptyAzureContext creates a new empty Azure context.

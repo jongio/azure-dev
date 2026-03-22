@@ -23,11 +23,11 @@ type Cassette struct {
 }
 
 type Interaction struct {
-	Id       int      `yaml:"id"`
-	Args     []string `yaml:"args"`
-	ExitCode int      `yaml:"exitCode"`
 	Stdout   string   `yaml:"stdout"`
 	Stderr   string   `yaml:"stderr"`
+	Args     []string `yaml:"args"`
+	Id       int      `yaml:"id"`
+	ExitCode int      `yaml:"exitCode"`
 }
 
 func expand(cassette string, dir string) error {

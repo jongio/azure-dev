@@ -9,6 +9,8 @@ import (
 	"log"
 	"maps"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strings"
 
@@ -60,6 +62,9 @@ func newRootCmd(
 	registerDependencies bool,
 ) *cobra.Command {
 	prevDir := ""
+
+	// cpuProfileFile holds the open file handle for CPU profiling so it can be closed in PersistentPostRunE.
+	var cpuProfileFile *os.File
 
 	// Register common dependencies for the IoC rootContainer
 	if rootContainer == nil {
@@ -143,9 +148,45 @@ func newRootCmd(
 				}
 			}
 
+			// Start CPU profiling if requested via --cpu-profile flag.
+			if opts.CpuProfile != "" {
+				f, err := os.Create(opts.CpuProfile)
+				if err != nil {
+					return fmt.Errorf("failed to create CPU profile file %s: %w", opts.CpuProfile, err)
+				}
+				cpuProfileFile = f
+
+				if err := pprof.StartCPUProfile(f); err != nil {
+					cpuProfileFile.Close()
+					cpuProfileFile = nil
+					return fmt.Errorf("failed to start CPU profile: %w", err)
+				}
+			}
+
 			return nil
 		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			// Stop CPU profiling and close the output file if profiling was started.
+			if cpuProfileFile != nil {
+				pprof.StopCPUProfile()
+				cpuProfileFile.Close()
+				cpuProfileFile = nil
+			}
+
+			// Write heap memory profile if requested via --mem-profile flag.
+			if opts.MemProfile != "" {
+				f, err := os.Create(opts.MemProfile)
+				if err != nil {
+					return fmt.Errorf("failed to create memory profile file %s: %w", opts.MemProfile, err)
+				}
+				defer f.Close()
+
+				runtime.GC() // Collect latest allocation stats before writing the profile.
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					return fmt.Errorf("failed to write memory profile: %w", err)
+				}
+			}
+
 			// This is just for cleanliness and making writing tests simpler since
 			// we can just remove the entire project folder afterwards.
 			// In practical execution, this wouldn't affect much, since the CLI is exiting.

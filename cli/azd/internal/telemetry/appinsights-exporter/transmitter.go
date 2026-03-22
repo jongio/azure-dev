@@ -21,30 +21,30 @@ type Transmitter interface {
 }
 
 type httpTransmitter struct {
-	endpoint string
 	client   *http.Client
+	endpoint string
 }
 
 type TransmissionResult struct {
-	StatusCode int
 	RetryAfter *time.Time
 	Response   *BackendResponse
+	StatusCode int
 }
 
 // Structures returned by data collector
 type BackendResponse struct {
+	Errors        ItemTransmissionResults `json:"errors"`
 	ItemsReceived int                     `json:"itemsReceived"`
 	ItemsAccepted int                     `json:"itemsAccepted"`
-	Errors        ItemTransmissionResults `json:"errors"`
 }
 
 // This needs to be its own type because it implements sort.Interface
 type ItemTransmissionResults []*ItemTransmissionResult
 
 type ItemTransmissionResult struct {
+	Message    string `json:"message"`
 	Index      int    `json:"index"`
 	StatusCode int    `json:"statusCode"`
-	Message    string `json:"message"`
 }
 
 const (
@@ -61,7 +61,7 @@ func NewTransmitter(endpointAddress string, client *http.Client) Transmitter {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &httpTransmitter{endpointAddress, client}
+	return &httpTransmitter{client: client, endpoint: endpointAddress}
 }
 
 func (transmitter *httpTransmitter) Transmit(

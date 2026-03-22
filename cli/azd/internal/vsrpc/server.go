@@ -31,13 +31,13 @@ import (
 type Server struct {
 	// sessions is a map of session IDs to server sessions.
 	sessions map[string]*serverSession
-	// sessionsMu protects access to sessions.
-	sessionsMu sync.Mutex
 	// rootContainer contains all the core registrations for the azd components.
 	// It is not expected to be modified throughout the lifetime of the server.
 	rootContainer *ioc.NestedContainer
 	// cancelTelemetryUpload is a function that cancels the background telemetry upload goroutine.
 	cancelTelemetryUpload func()
+	// sessionsMu protects access to sessions.
+	sessionsMu sync.Mutex
 }
 
 func NewServer(rootContainer *ioc.NestedContainer) *Server {

@@ -65,10 +65,10 @@ type printer struct {
 	internal.Cursor
 
 	writer         io.Writer
-	consoleWidth   int
-	currentLine    string
 	size           *CanvasSize
 	cursorPosition *CursorPosition
+	currentLine    string
+	consoleWidth   int
 	clearLock      sync.Mutex
 	writeLock      sync.Mutex
 }

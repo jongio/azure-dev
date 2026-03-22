@@ -204,27 +204,27 @@ func (c *FuncAppHostClient) waitForDeployment(ctx context.Context, location stri
 
 // The response for a deployment located at api/deployments/{id} that represents the deployment initiated by api/publish.
 type PublishResponse struct {
-	Id                 string              `json:"id"`
-	Status             PublishStatus       `json:"status"`
-	StatusText         string              `json:"status_text"`
-	AuthorEmail        string              `json:"author_email"`
-	Author             string              `json:"author"`
-	Deployer           string              `json:"deployer"`
-	RemoteBuild        bool                `json:"remoteBuild"`
-	Message            string              `json:"message"`
-	Progress           string              `json:"progress"`
 	ReceivedTime       time.Time           `json:"received_time"`
 	StartTime          time.Time           `json:"start_time"`
 	EndTime            time.Time           `json:"end_time"`
 	LastSuccessEndTime time.Time           `json:"last_success_end_time"`
-	Complete           bool                `json:"complete"`
-	Active             bool                `json:"active"`
-	IsTemp             bool                `json:"is_temp"`
-	IsReadonly         bool                `json:"is_readonly"`
+	Id                 string              `json:"id"`
+	StatusText         string              `json:"status_text"`
+	AuthorEmail        string              `json:"author_email"`
+	Author             string              `json:"author"`
+	Deployer           string              `json:"deployer"`
+	Message            string              `json:"message"`
+	Progress           string              `json:"progress"`
 	Url                string              `json:"url"`
 	LogUrl             string              `json:"log_url"`
 	SiteName           string              `json:"site_name"`
 	BuildSummary       PublishBuildSummary `json:"build_summary"`
+	Status             PublishStatus       `json:"status"`
+	RemoteBuild        bool                `json:"remoteBuild"`
+	Complete           bool                `json:"complete"`
+	Active             bool                `json:"active"`
+	IsTemp             bool                `json:"is_temp"`
+	IsReadonly         bool                `json:"is_readonly"`
 }
 
 type PublishBuildSummary struct {

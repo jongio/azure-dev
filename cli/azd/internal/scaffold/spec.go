@@ -9,14 +9,6 @@ import (
 )
 
 type InfraSpec struct {
-	Parameters []Parameter
-
-	Services []ServiceSpec
-
-	// Existing resources for declaration purposes.
-	// These are resources that are already created and should be used by the
-	// current deployment for referencing
-	Existing []ExistingResource
 
 	// Databases to create
 	DbPostgres    *DatabasePostgres
@@ -35,13 +27,21 @@ type InfraSpec struct {
 	// Storage account
 	StorageAccount *StorageAccount
 
-	// ai models
-	AIModels []AIModel
-
 	// ai foundry models
 	AiFoundryProject *AiFoundrySpec
 
-	AISearch *AISearch
+	AISearch   *AISearch
+	Parameters []Parameter
+
+	Services []ServiceSpec
+
+	// Existing resources for declaration purposes.
+	// These are resources that are already created and should be used by the
+	// current deployment for referencing
+	Existing []ExistingResource
+
+	// ai models
+	AIModels []AIModel
 }
 
 type Parameter struct {
@@ -128,15 +128,10 @@ type StorageAccount struct {
 }
 
 type ServiceSpec struct {
-	Name string
-	Port int
-	Host HostKind
-
 	Env map[string]string
 
 	// App Service specific configuration
-	Runtime        *RuntimeInfo
-	StartupCommand string
+	Runtime *RuntimeInfo
 
 	// Front-end properties.
 	Frontend *Frontend
@@ -156,9 +151,6 @@ type ServiceSpec struct {
 
 	StorageAccount *StorageReference
 
-	// AI model connections
-	AIModels []AIModelReference
-
 	// Messaging services
 	ServiceBus *ServiceBus
 	EventHubs  *EventHubs
@@ -167,8 +159,17 @@ type ServiceSpec struct {
 
 	AISearch *AISearchReference
 
+	Name string
+	Host HostKind
+
+	StartupCommand string
+
+	// AI model connections
+	AIModels []AIModelReference
+
 	// Existing resource bindings
 	Existing []*ExistingResource
+	Port     int
 }
 
 type HostKind string

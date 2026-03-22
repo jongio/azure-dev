@@ -10,24 +10,24 @@ import (
 
 // MiddlewareRegistration allows middleware components to be registered at any level within the command hierarchy
 type MiddlewareRegistration struct {
-	// The name of the middleware used for logging purposes
-	Name string
 	// The constructor/resolver used to create the middleware instance
 	Resolver any
 	// An optional predicate to control when this middleware is registered
 	Predicate UseMiddlewareWhenPredicate
+	// The name of the middleware used for logging purposes
+	Name string
 }
 
 // Action descriptors consolidates the registration for a cobra command and related flags, actions and help messages.
 type ActionDescriptor struct {
-	// Name of the descriptor (also used for command name if not specified in options)
-	Name string
 	// Descriptor options
 	Options         *ActionDescriptorOptions
 	parent          *ActionDescriptor
-	children        []*ActionDescriptor
-	middleware      []*MiddlewareRegistration
 	flagCompletions map[string]FlagCompletionFunc
+	// Name of the descriptor (also used for command name if not specified in options)
+	Name       string
+	children   []*ActionDescriptor
+	middleware []*MiddlewareRegistration
 }
 
 // Creates a new action descriptor
@@ -175,24 +175,24 @@ func SetGroupCommandAnnotation(cmd *cobra.Command, group RootLevelHelpOption) {
 
 // ActionDescriptionOptions specifies all options for a given azd command and action
 type ActionDescriptorOptions struct {
-	// Cobra command configuration
-	*cobra.Command
+	// The logic that produces the command help
+	HelpOptions ActionHelpOptions
 	// Function to resolve / create the flags instance required for the action
 	FlagsResolver any
 	// Function to resolve / create the action instance
 	ActionResolver any
-	// Array of support output formats
-	OutputFormats []output.Format
+	// Cobra command configuration
+	*cobra.Command
 	// The default output format if omitted in the command flags
 	DefaultFormat output.Format
+	// Defines grouping options for the command
+	GroupingOptions CommandGroupOptions
+	// Array of support output formats
+	OutputFormats []output.Format
 	// Whether or not telemetry should be disabled for the current action
 	DisableTelemetry bool
 	// Whether or not troubleshooting should be disabled for the current action
 	DisableTroubleshooting bool
-	// The logic that produces the command help
-	HelpOptions ActionHelpOptions
-	// Defines grouping options for the command
-	GroupingOptions CommandGroupOptions
 	// Whether or not the command requires a principal login
 	RequireLogin bool
 }

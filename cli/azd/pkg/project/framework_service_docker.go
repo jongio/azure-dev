@@ -20,15 +20,14 @@ import (
 )
 
 type DockerProjectOptions struct {
-	Path        string                    `yaml:"path,omitempty"        json:"path,omitempty"`
-	Context     string                    `yaml:"context,omitempty"     json:"context,omitempty"`
-	Platform    string                    `yaml:"platform,omitempty"    json:"platform,omitempty"`
-	Target      string                    `yaml:"target,omitempty"      json:"target,omitempty"`
-	Registry    osutil.ExpandableString   `yaml:"registry,omitempty"    json:"registry"`
-	Image       osutil.ExpandableString   `yaml:"image,omitempty"       json:"image"`
-	Tag         osutil.ExpandableString   `yaml:"tag,omitempty"         json:"tag"`
-	RemoteBuild bool                      `yaml:"remoteBuild,omitempty"  json:"remoteBuild,omitempty"`
-	BuildArgs   []osutil.ExpandableString `yaml:"buildArgs,omitempty"   json:"buildArgs,omitempty"`
+	Path      string                    `yaml:"path,omitempty"        json:"path,omitempty"`
+	Context   string                    `yaml:"context,omitempty"     json:"context,omitempty"`
+	Platform  string                    `yaml:"platform,omitempty"    json:"platform,omitempty"`
+	Target    string                    `yaml:"target,omitempty"      json:"target,omitempty"`
+	Registry  osutil.ExpandableString   `yaml:"registry,omitempty"    json:"registry"`
+	Image     osutil.ExpandableString   `yaml:"image,omitempty"       json:"image"`
+	Tag       osutil.ExpandableString   `yaml:"tag,omitempty"         json:"tag"`
+	BuildArgs []osutil.ExpandableString `yaml:"buildArgs,omitempty"   json:"buildArgs,omitempty"`
 	// not supported from azure.yaml directly yet. Adding it for Aspire to use it, initially.
 	// Aspire would pass the secret keys, which are env vars that azd will set just to run docker build.
 	BuildSecrets []string `yaml:"-"                     json:"-"`
@@ -38,6 +37,7 @@ type DockerProjectOptions struct {
 	// This is used by projects like Aspire that can generate a dockerfile on the fly and don't want to write it to disk.
 	// When this is set, whatever value in Path is ignored and the dockerfile contents in this property is used instead.
 	InMemDockerfile []byte `yaml:"-"                     json:"-"`
+	RemoteBuild     bool   `yaml:"remoteBuild,omitempty"  json:"remoteBuild,omitempty"`
 }
 
 type dockerProject struct {

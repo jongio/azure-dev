@@ -10,12 +10,12 @@ import (
 
 // RunResult is the result of running a command.
 type RunResult struct {
-	// The exit code of the command.
-	ExitCode int
 	// The stdout output captured from running the command.
 	Stdout string
 	// The stderr output captured from running the command.
 	Stderr string
+	// The exit code of the command.
+	ExitCode int
 }
 
 func NewRunResult(code int, stdout, stderr string) RunResult {
@@ -30,16 +30,16 @@ func NewRunResult(code int, stdout, stderr string) RunResult {
 type ExitError struct {
 	// The path or name of the command being invoked.
 	Cmd string
-	// The exit code of the command.
-	ExitCode int
 
 	stdOut string
 	stdErr string
 
-	outputAvailable bool
-
 	// The underlying exec.ExitError.
 	err exec.ExitError
+	// The exit code of the command.
+	ExitCode int
+
+	outputAvailable bool
 }
 
 func NewExitError(

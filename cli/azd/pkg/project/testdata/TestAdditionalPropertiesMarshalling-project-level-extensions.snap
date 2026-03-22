@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-name: test-extension-project
 services:
     api:
         project: ./src/api
         host: containerapp
         language: js
+name: test-extension-project
 customProjectField: project-level-extension
 extensionConfig:
     database:

@@ -23,9 +23,9 @@ var (
 )
 
 type EventDispatcher[T any] struct {
-	mu         sync.RWMutex
 	handlers   map[Event][]EventHandlerFn[T]
 	eventNames map[Event]struct{}
+	mu         sync.RWMutex
 }
 
 func NewEventDispatcher[T any](validEventNames ...Event) *EventDispatcher[T] {

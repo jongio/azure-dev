@@ -57,8 +57,8 @@ type ConsoleShim interface {
 // ShowPreviewerOptions provide the settings to start a console previewer.
 type ShowPreviewerOptions struct {
 	Prefix       string
-	MaxLineCount int
 	Title        string
+	MaxLineCount int
 }
 
 type PromptDialog struct {
@@ -68,13 +68,13 @@ type PromptDialog struct {
 }
 
 type PromptDialogItem struct {
+	Description  *string
+	DefaultValue *string
 	ID           string
 	Kind         string
 	DisplayName  string
-	Description  *string
-	DefaultValue *string
-	Required     bool
 	Choices      []PromptDialogChoice
+	Required     bool
 }
 
 type PromptDialogChoice struct {
@@ -137,13 +137,34 @@ type Console interface {
 }
 
 type AskerConsole struct {
-	asker   Asker
 	handles ConsoleHandles
 	// the writer the console was constructed with, and what we reset to when SetWriter(nil) is called.
 	defaultWriter io.Writer
 	// the writer which output is written to.
 	writer    io.Writer
 	formatter output.Formatter
+
+	asker Asker
+	// when non nil, use this client instead of prompting ourselves on the console.
+	promptClient *externalPromptClient
+
+	spinner *yacspin.Spinner
+
+	previewer *progressLog
+
+	currentIndent *atomic.String
+	// consoleWidth is the width of the underlying console window. The value is updated as the window resized. Nil when
+	// isTerminal is false.
+	consoleWidth        *atomic.Int32
+	spinnerCurrentTitle string
+
+	showProgressMu sync.Mutex // ensures atomicity when swapping the current progress renderer (spinner or previewer)
+
+	spinnerLineMu       sync.Mutex // secures spinnerCurrentTitle and the line of spinner text
+	spinnerTerminalMode yacspin.TerminalMode
+	// holds the last 2 bytes written by message or messageUX. This is used to detect when there is already an empty
+	// line (\n\n)
+	last2Byte [2]byte
 
 	// isTerminal controls whether terminal-style input/output will be used.
 	//
@@ -153,37 +174,19 @@ type AskerConsole struct {
 	//     stripped of formatting characters.
 	isTerminal bool
 	noPrompt   bool
-	// when non nil, use this client instead of prompting ourselves on the console.
-	promptClient *externalPromptClient
 	// noPromptDialog when true, disables SupportsPromptDialog() even when promptClient is set.
 	noPromptDialog bool
-
-	showProgressMu sync.Mutex // ensures atomicity when swapping the current progress renderer (spinner or previewer)
-
-	spinner             *yacspin.Spinner
-	spinnerLineMu       sync.Mutex // secures spinnerCurrentTitle and the line of spinner text
-	spinnerTerminalMode yacspin.TerminalMode
-	spinnerCurrentTitle string
-
-	previewer *progressLog
-
-	currentIndent *atomic.String
-	// consoleWidth is the width of the underlying console window. The value is updated as the window resized. Nil when
-	// isTerminal is false.
-	consoleWidth *atomic.Int32
-	// holds the last 2 bytes written by message or messageUX. This is used to detect when there is already an empty
-	// line (\n\n)
-	last2Byte [2]byte
 }
 
 type ConsoleOptions struct {
+	DefaultValue any
+
 	Message string
 	Help    string
 	Options []string
 
 	// OptionDetails is an optional field that can be used to provide additional information about the options.
 	OptionDetails []string
-	DefaultValue  any
 
 	// Prompt-only options
 	IsPassword bool
@@ -371,11 +374,11 @@ type spinnerLine struct {
 	// The prefix before the spinner.
 	Prefix string
 
-	// Charset that is used to animate the spinner.
-	CharSet []string
-
 	// The message to be displayed.
 	Message string
+
+	// Charset that is used to animate the spinner.
+	CharSet []string
 }
 
 func (c *AskerConsole) spinnerLine(title string, indent string) spinnerLine {
@@ -1005,9 +1008,9 @@ type Writers struct {
 
 // ExternalPromptConfiguration allows configuring the console to delegate prompts to an external service.
 type ExternalPromptConfiguration struct {
+	Transporter policy.Transporter
 	Endpoint    string
 	Key         string
-	Transporter policy.Transporter
 	// NoPromptDialog when true, disables the prompt dialog feature even when external prompting is enabled.
 	// This causes each prompt to be sent individually through the external prompt API, which is useful
 	// for clients that don't support the dialog API but still want location prompts to include the full

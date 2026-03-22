@@ -36,8 +36,8 @@ const AzdVersionParameterName string = "azdversion"
 
 // AssignmentsManager manages interaction with the Assignments service, caching the results for 24 hours.
 type AssignmentsManager struct {
-	cacheRoot string
 	client    *tasClient
+	cacheRoot string
 }
 
 // NewAssignmentsManager creates a new AssignmentManager, which will communicate with the TAS service. The
@@ -69,17 +69,17 @@ func NewAssignmentsManager(endpoint string, transport policy.Transporter) (*Assi
 
 // Assignment is a subset of the information returned by the TAS service.
 type Assignment struct {
-	Features          []string
 	Flights           map[string]string
+	AssignmentContext string
+	Features          []string
 	Configs           []AssignmentConfig
 	ParameterGroups   []string
-	AssignmentContext string
 }
 
 // AssignmentConfig is information about a specific config in an assignment.
 type AssignmentConfig struct {
-	ID         string
 	Parameters map[string]any
+	ID         string
 }
 
 // Assignment gets a the assignment information for this given machine.
@@ -193,7 +193,7 @@ func (am *AssignmentsManager) readResponseFromCache() (*treatmentAssignmentRespo
 // be incremented if the format changes, and is currently one), the JSON encoded response from the TAS Service and
 // an expiration time
 type assignmentCacheFile struct {
-	Version   int             `json:"version"`
-	Response  json.RawMessage `json:"response"`
 	ExpiresOn time.Time       `json:"expiresOn"`
+	Response  json.RawMessage `json:"response"`
+	Version   int             `json:"version"`
 }

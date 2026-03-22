@@ -23,8 +23,8 @@ type HookFilterPredicateFn func(scriptName string, hookConfig *HookConfig) bool
 // Hooks enable support to invoke integration scripts before & after commands
 // Scripts can be invoked at the project or service level or
 type HooksManager struct {
-	cwd           string
 	commandRunner exec.CommandRunner
+	cwd           string
 }
 
 // NewHooks creates a new instance of CommandHooks

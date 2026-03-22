@@ -30,21 +30,21 @@ type Prompt interface {
 
 // Question represents a single prompt in the decision tree.
 type Question struct {
-	Branches  map[any][]QuestionReference `json:"branches"`
-	Next      []QuestionReference         `json:"next"`
 	Binding   any                         `json:"-"`
-	Heading   string                      `json:"heading,omitempty"`
-	Help      string                      `json:"help,omitempty"`
-	Message   string
-	Prompt    Prompt `json:"prompt,omitempty"`
+	Prompt    Prompt                      `json:"prompt,omitempty"`
+	Branches  map[any][]QuestionReference `json:"branches"`
 	State     map[string]any
 	BeforeAsk func(ctx context.Context, question *Question, value any) error
 	AfterAsk  func(ctx context.Context, question *Question, value any) error
+	Heading   string `json:"heading,omitempty"`
+	Help      string `json:"help,omitempty"`
+	Message   string
+	Next      []QuestionReference `json:"next"`
 }
 
 type QuestionReference struct {
-	Key   string `json:"id"`
 	State map[string]any
+	Key   string `json:"id"`
 }
 type Choice struct {
 	Label string `json:"label"`

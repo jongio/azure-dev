@@ -88,17 +88,17 @@ type HttpClient interface {
 // You can configure azd to ignore its native credential system and instead delegate to AZ CLI (useful for cases where azd
 // does not yet support your preferred method of authentication by setting [cUseLegacyAzCliAuthKey] in config to true.
 type Manager struct {
+	externalAuthCfg     ExternalAuthConfiguration
 	publicClient        publicClient
-	publicClientOptions []public.Option
-	cloud               *cloud.Cloud
 	configManager       config.FileConfigManager
 	userConfigManager   config.UserConfigManager
 	credentialCache     Cache
 	httpClient          HttpClient
 	console             input.Console
-	externalAuthCfg     ExternalAuthConfiguration
 	azCli               az.AzCli
+	cloud               *cloud.Cloud
 	userAgent           string
+	publicClientOptions []public.Option
 }
 
 // UserAgent is a typed string for the application user-agent,
@@ -106,9 +106,9 @@ type Manager struct {
 type UserAgent string
 
 type ExternalAuthConfiguration struct {
+	Transporter policy.Transporter
 	Endpoint    string
 	Key         string
-	Transporter policy.Transporter
 }
 
 func NewManager(
@@ -681,9 +681,9 @@ type WithOpenUrl func(url string) error
 
 // LoginInteractiveOptions holds the optional inputs for interactive login.
 type LoginInteractiveOptions struct {
+	WithOpenUrl  WithOpenUrl
 	TenantID     string
 	RedirectPort int
-	WithOpenUrl  WithOpenUrl
 }
 
 // LoginInteractive opens a browser for authenticate the user.
@@ -1231,10 +1231,10 @@ func (m *Manager) saveSecret(tenantId, clientId string, ps *persistedSecret) err
 }
 
 type CredentialForCurrentUserOptions struct {
-	// NoPrompt controls whether the credential may prompt for user interaction.
-	NoPrompt bool
 	// The tenant ID to use when constructing the credential, instead of the default tenant.
 	TenantID string
+	// NoPrompt controls whether the credential may prompt for user interaction.
+	NoPrompt bool
 }
 
 // persistedSecret is the model type for the value we store in the credential cache. It is logically a discriminated union
@@ -1274,11 +1274,11 @@ type federatedAuth struct {
 // either an home account id (when logging in using a public client) or a client and tenant id (when using a confidential
 // client).
 type userProperties struct {
-	ManagedIdentity bool    `json:"managedIdentity,omitempty"`
 	HomeAccountID   *string `json:"homeAccountId,omitempty"`
-	FromOneAuth     bool    `json:"fromOneAuth,omitempty"`
 	ClientID        *string `json:"clientId,omitempty"`
 	TenantID        *string `json:"tenantId,omitempty"`
+	ManagedIdentity bool    `json:"managedIdentity,omitempty"`
+	FromOneAuth     bool    `json:"fromOneAuth,omitempty"`
 }
 
 func readUserProperties(cfg config.Config) (*userProperties, error) {

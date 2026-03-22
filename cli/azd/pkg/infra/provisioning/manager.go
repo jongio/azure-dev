@@ -30,16 +30,16 @@ type DefaultProviderResolver func() (ProviderKind, error)
 // Manages the orchestration of infrastructure provisioning
 type Manager struct {
 	serviceLocator      ioc.ServiceLocator
-	defaultProvider     DefaultProviderResolver
 	envManager          environment.Manager
-	env                 *environment.Environment
 	console             input.Console
 	provider            Provider
-	alphaFeatureManager *alpha.FeatureManager
-	projectPath         string
-	options             *Options
 	fileShareService    storage.FileShareService
+	defaultProvider     DefaultProviderResolver
+	env                 *environment.Environment
+	alphaFeatureManager *alpha.FeatureManager
+	options             *Options
 	cloud               *cloud.Cloud
+	projectPath         string
 }
 
 var (
@@ -141,9 +141,9 @@ const (
 )
 
 type azdOperation struct {
+	Config      any
 	Type        string
 	Description string
-	Config      any
 }
 
 type azdOperationFileShareUpload struct {

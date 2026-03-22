@@ -19,11 +19,11 @@ import (
 )
 
 type Resource struct {
+	ManagedBy *string `json:"managedBy,omitempty"`
 	Id        string  `json:"id"`
 	Name      string  `json:"name"`
 	Type      string  `json:"type"`
 	Location  string  `json:"location"`
-	ManagedBy *string `json:"managedBy,omitempty"`
 }
 
 type ResourceGroup struct {

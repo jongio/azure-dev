@@ -27,9 +27,9 @@ const subscriptionsCacheFile = "subscriptions.cache"
 //
 // To clear all entries in the cache, call Clear().
 type subscriptionsCache struct {
-	cacheDir string
-
 	inMemoryCopy map[string][]Subscription
+	cacheDir     string
+
 	inMemoryLock sync.RWMutex
 }
 

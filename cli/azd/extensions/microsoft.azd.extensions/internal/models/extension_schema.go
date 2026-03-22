@@ -17,22 +17,22 @@ import (
 )
 
 type ExtensionSchema struct {
+	Platforms          map[string]map[string]any        `yaml:"platforms"    json:"platforms,omitempty"`
 	Id                 string                           `yaml:"id"                 json:"id"`
 	Namespace          string                           `yaml:"namespace"          json:"namespace,omitempty"`
 	Language           string                           `yaml:"language"           json:"language,omitempty"`
 	EntryPoint         string                           `yaml:"entryPoint"         json:"entryPoint,omitempty"`
 	Version            string                           `yaml:"version"            json:"version"`
 	RequiredAzdVersion string                           `yaml:"requiredAzdVersion" json:"requiredAzdVersion,omitempty"`
-	Capabilities       []extensions.CapabilityType      `yaml:"capabilities"       json:"capabilities"`
-	Providers          []extensions.Provider            `yaml:"providers"    json:"providers,omitempty"`
 	DisplayName        string                           `yaml:"displayName"  json:"displayName"`
 	Description        string                           `yaml:"description"  json:"description"`
 	Usage              string                           `yaml:"usage"        json:"usage"`
+	Path               string                           `yaml:"-"            json:"-"`
+	Capabilities       []extensions.CapabilityType      `yaml:"capabilities"       json:"capabilities"`
+	Providers          []extensions.Provider            `yaml:"providers"    json:"providers,omitempty"`
 	Examples           []extensions.ExtensionExample    `yaml:"examples"     json:"examples"`
 	Tags               []string                         `yaml:"tags"         json:"tags,omitempty"`
 	Dependencies       []extensions.ExtensionDependency `yaml:"dependencies" json:"dependencies,omitempty"`
-	Platforms          map[string]map[string]any        `yaml:"platforms"    json:"platforms,omitempty"`
-	Path               string                           `yaml:"-"            json:"-"`
 }
 
 type schemaAlias ExtensionSchema

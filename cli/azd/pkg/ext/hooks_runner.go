@@ -24,14 +24,14 @@ import (
 // Hooks enable support to invoke integration scripts before & after commands
 // Scripts can be invoked at the project or service level or
 type HooksRunner struct {
-	hooksManager   *HooksManager
 	commandRunner  exec.CommandRunner
 	console        input.Console
-	cwd            string
-	hooks          map[string][]*HookConfig
-	env            *environment.Environment
 	envManager     environment.Manager
 	serviceLocator ioc.ServiceLocator
+	hooksManager   *HooksManager
+	hooks          map[string][]*HookConfig
+	env            *environment.Environment
+	cwd            string
 }
 
 // NewHooks creates a new instance of CommandHooks

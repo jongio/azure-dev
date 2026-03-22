@@ -14,13 +14,13 @@ type AspireHost struct {
 }
 
 type Environment struct {
-	Name           string
-	IsCurrent      bool
 	Properties     map[string]string
-	Services       []*Service
 	Values         map[string]string
 	LastDeployment *DeploymentResult `json:",omitempty"`
+	Name           string
+	Services       []*Service
 	Resources      []*Resource
+	IsCurrent      bool
 }
 
 type Resource struct {
@@ -31,32 +31,32 @@ type Resource struct {
 
 type EnvironmentInfo struct {
 	Name       string
-	IsCurrent  bool
 	DotEnvPath string
+	IsCurrent  bool
 }
 
 type Service struct {
-	Name       string
-	IsExternal bool
-	Path       string
 	Endpoint   *string `json:",omitempty"`
 	ResourceId *string `json:",omitempty"`
+	Name       string
+	Path       string
+	IsExternal bool
 }
 
 type DeploymentResult struct {
-	Success      bool
 	Time         time.Time
 	Message      string
 	DeploymentId string
+	Success      bool
 }
 
 type ProgressMessage struct {
-	Message            string
-	Severity           MessageSeverity
 	Time               time.Time
-	Kind               MessageKind
+	Message            string
 	Code               string
 	AdditionalInfoLink string
+	Severity           MessageSeverity
+	Kind               MessageKind
 }
 
 type InitializeServerOptions struct {

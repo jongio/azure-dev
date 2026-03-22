@@ -23,8 +23,9 @@ import (
 
 // ProvisioningProgressDisplay displays interactive progress for an ongoing Azure provisioning operation.
 type ProvisioningProgressDisplay struct {
-	// Whether the deployment has started
-	deploymentStarted bool
+	resourceManager ResourceManager
+	console         input.Console
+	deployment      Deployment
 	// Keeps track of created resources
 	displayedResources map[string]bool
 	// Cache for display names, keyed by resource IDs
@@ -35,9 +36,8 @@ type ProvisioningProgressDisplay struct {
 	// The last recorded spinner message, used to avoid unnecessary updates to the spinner
 	lastSpinnerMessage string
 
-	resourceManager ResourceManager
-	console         input.Console
-	deployment      Deployment
+	// Whether the deployment has started
+	deploymentStarted bool
 }
 
 // NewProvisioningProgressDisplay creates a new ProvisioningProgressDisplay that tracks and renders

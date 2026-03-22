@@ -41,9 +41,9 @@ import (
 )
 
 type showFlags struct {
-	global      *internal.GlobalCommandOptions
-	showSecrets bool
+	global *internal.GlobalCommandOptions
 	internal.EnvFlag
+	showSecrets bool
 }
 
 func (s *showFlags) Bind(local *pflag.FlagSet, global *internal.GlobalCommandOptions) {
@@ -74,25 +74,25 @@ func NewShowCmd() *cobra.Command {
 }
 
 type showAction struct {
-	projectConfig        *project.ProjectConfig
-	importManager        *project.ImportManager
 	console              input.Console
 	formatter            output.Formatter
 	writer               io.Writer
-	resourceService      *azapi.ResourceService
 	kvService            keyvault.KeyVaultService
 	envManager           environment.Manager
 	infraResourceManager infra.ResourceManager
+	creds                account.SubscriptionCredentialProvider
+	projectConfig        *project.ProjectConfig
+	importManager        *project.ImportManager
+	resourceService      *azapi.ResourceService
 	azdCtx               *azdcontext.AzdContext
 	flags                *showFlags
-	args                 []string
-	creds                account.SubscriptionCredentialProvider
 	armClientOptions     *arm.ClientOptions
 	featureManager       *alpha.FeatureManager
 	lazyServiceManager   *lazy.Lazy[project.ServiceManager]
 	lazyResourceManager  *lazy.Lazy[project.ResourceManager]
-	portalUrlBase        string
 	stateCacheManager    *state.StateCacheManager
+	portalUrlBase        string
+	args                 []string
 }
 
 func NewShowAction(
@@ -391,9 +391,9 @@ func (s *showAction) showResource(ctx context.Context, name string, env *environ
 }
 
 type showResourceOptions struct {
-	showSecrets  bool
 	resourceSpec *project.ResourceConfig
 	clientOpts   *arm.ClientOptions
+	showSecrets  bool
 }
 
 func showAppService(

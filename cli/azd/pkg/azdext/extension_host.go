@@ -44,27 +44,27 @@ type extensionEventManager interface {
 
 // ServiceTargetRegistration describes a service target provider to register with azd core.
 type ServiceTargetRegistration struct {
-	Host    string
 	Factory func() ServiceTargetProvider
+	Host    string
 }
 
 // FrameworkServiceRegistration describes a framework service provider to register with azd core.
 type FrameworkServiceRegistration struct {
-	Language string
 	Factory  func() FrameworkServiceProvider
+	Language string
 }
 
 // ProjectEventRegistration describes a project-level event handler to register.
 type ProjectEventRegistration struct {
-	EventName string
 	Handler   ProjectEventHandler
+	EventName string
 }
 
 // ServiceEventRegistration describes a service-level event handler to register.
 type ServiceEventRegistration struct {
-	EventName string
 	Handler   ServiceEventHandler
 	Options   *ServiceEventOptions
+	EventName string
 }
 
 // ProviderFactory describes a function that creates a provider instance
@@ -78,16 +78,15 @@ type FrameworkServiceFactory ProviderFactory[FrameworkServiceProvider]
 
 // ExtensionHost coordinates registering service targets, wiring event handlers, and signaling readiness.
 type ExtensionHost struct {
-	client *AzdClient
+	serviceTargetManager    serviceTargetRegistrar
+	frameworkServiceManager frameworkServiceRegistrar
+	eventManager            extensionEventManager
+	client                  *AzdClient
 
 	serviceTargets    []ServiceTargetRegistration
 	frameworkServices []FrameworkServiceRegistration
 	projectHandlers   []ProjectEventRegistration
 	serviceHandlers   []ServiceEventRegistration
-
-	serviceTargetManager    serviceTargetRegistrar
-	frameworkServiceManager frameworkServiceRegistrar
-	eventManager            extensionEventManager
 }
 
 // NewExtensionHost creates a new ExtensionHost for the supplied azd client.

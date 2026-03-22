@@ -23,8 +23,8 @@ import (
 
 type ServerInfo struct {
 	Address    string
-	Port       int
 	SigningKey []byte
+	Port       int
 }
 
 type Server struct {
