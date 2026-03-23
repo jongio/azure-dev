@@ -375,6 +375,7 @@ func (da *DeployAction) deployServicesParallel(
 	continueOnError := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.continueOnError"))
 	aspireGateEnabled := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.aspireGate"))
 	serviceLogsEnabled := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.serviceLogs"))
+	progressTableEnabled := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.progressTable"))
 
 	// Determine if any services are Aspire services (need build gate coordination)
 	var gate *aspireBuildGate
@@ -405,10 +406,21 @@ func (da *DeployAction) deployServicesParallel(
 		}
 	}
 
-	if continueOnError {
-		return da.deployParallelContinueOnError(ctx, stableServices, deployResults, gate, logDir)
+	// Set up progress table tracker
+	var tracker *deployProgressTracker
+	if progressTableEnabled {
+		names := make([]string, len(stableServices))
+		for i, svc := range stableServices {
+			names[i] = svc.Name
+		}
+		interactive := da.console.IsSpinnerInteractive()
+		tracker = newDeployProgressTracker(da.console.GetWriter(), interactive, names)
 	}
-	return da.deployParallelFailFast(ctx, stableServices, deployResults, gate, logDir)
+
+	if continueOnError {
+		return da.deployParallelContinueOnError(ctx, stableServices, deployResults, gate, logDir, tracker)
+	}
+	return da.deployParallelFailFast(ctx, stableServices, deployResults, gate, logDir, tracker)
 }
 
 // deployParallelFailFast uses errgroup — first error cancels all pending goroutines.
@@ -419,6 +431,7 @@ func (da *DeployAction) deployParallelFailFast(
 	deployResults map[string]*project.ServiceDeployResult,
 	gate *aspireBuildGate,
 	logDir string,
+	tracker *deployProgressTracker,
 ) error {
 	var mu sync.Mutex
 	g, gCtx := errgroup.WithContext(ctx)
@@ -429,9 +442,24 @@ func (da *DeployAction) deployParallelFailFast(
 		}
 	}
 
+	// Start progress table ticker if enabled
+	if tracker != nil {
+		stopTicker := tracker.StartTicker(ctx)
+		defer func() {
+			stopTicker()
+			tracker.RenderFinal()
+		}()
+	}
+
 	for _, svc := range stableServices {
 		g.Go(func() error {
+			if tracker != nil {
+				tracker.Update(svc.Name, phaseWaiting, "waiting on gate")
+			}
 			if err := da.waitOnAspireGate(gCtx, svc, gate); err != nil {
+				if tracker != nil {
+					tracker.Update(svc.Name, phaseFailed, err.Error())
+				}
 				return err
 			}
 
@@ -440,18 +468,21 @@ func (da *DeployAction) deployParallelFailFast(
 				defer logWriter.Close()
 			}
 
+			if tracker != nil {
+				tracker.Update(svc.Name, phasePackaging, "")
+			}
 			deployResult, err := da.deploySingleService(gCtx, svc)
-
-			// For the first Aspire service, signal the gate after Package completes.
-			// Since deploySingleService runs Package→Publish→Deploy atomically,
-			// we signal the gate based on success/failure of the whole operation
-			// for the first Aspire service. A more granular approach would require
-			// splitting deploySingleService, but this is safe because other Aspire
-			// services only need the manifest which is generated during Package.
 			da.signalAspireGate(svc, gate, err)
 
 			if err != nil {
+				if tracker != nil {
+					tracker.Update(svc.Name, phaseFailed, err.Error())
+				}
 				return err
+			}
+
+			if tracker != nil {
+				tracker.Update(svc.Name, phaseDone, "")
 			}
 
 			mu.Lock()
@@ -479,6 +510,7 @@ func (da *DeployAction) deployParallelContinueOnError(
 	deployResults map[string]*project.ServiceDeployResult,
 	gate *aspireBuildGate,
 	logDir string,
+	tracker *deployProgressTracker,
 ) error {
 	var (
 		mu      sync.Mutex
@@ -495,6 +527,15 @@ func (da *DeployAction) deployParallelContinueOnError(
 		}
 	}
 
+	// Start progress table ticker if enabled
+	if tracker != nil {
+		stopTicker := tracker.StartTicker(ctx)
+		defer func() {
+			stopTicker()
+			tracker.RenderFinal()
+		}()
+	}
+
 	for _, svc := range stableServices {
 		wg.Add(1)
 		go func() {
@@ -506,7 +547,13 @@ func (da *DeployAction) deployParallelContinueOnError(
 				defer func() { <-sem }()
 			}
 
+			if tracker != nil {
+				tracker.Update(svc.Name, phaseWaiting, "waiting on gate")
+			}
 			if err := da.waitOnAspireGate(ctx, svc, gate); err != nil {
+				if tracker != nil {
+					tracker.Update(svc.Name, phaseFailed, err.Error())
+				}
 				errsMu.Lock()
 				errs = append(errs, fmt.Errorf("service %s: %w", svc.Name, err))
 				errsMu.Unlock()
@@ -518,14 +565,24 @@ func (da *DeployAction) deployParallelContinueOnError(
 				defer logWriter.Close()
 			}
 
+			if tracker != nil {
+				tracker.Update(svc.Name, phasePackaging, "")
+			}
 			deployResult, err := da.deploySingleService(ctx, svc)
 			da.signalAspireGate(svc, gate, err)
 
 			if err != nil {
+				if tracker != nil {
+					tracker.Update(svc.Name, phaseFailed, err.Error())
+				}
 				errsMu.Lock()
 				errs = append(errs, fmt.Errorf("service %s: %w", svc.Name, err))
 				errsMu.Unlock()
 				return
+			}
+
+			if tracker != nil {
+				tracker.Update(svc.Name, phaseDone, "")
 			}
 
 			mu.Lock()
