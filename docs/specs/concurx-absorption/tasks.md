@@ -1,6 +1,6 @@
 # Tasks: Absorb Concurx Features into azd Core
 
-<!-- NEXT: 1 -->
+<!-- NEXT: 4 -->
 
 ## TODO
 
@@ -121,4 +121,17 @@ Mark concurx as deprecated, document migration to alpha features.
 
 ## DONE
 
-(none)
+### ✅ Task 1: deploy.aspireGate — IMPLEMENTED
+- `cli/azd/internal/cmd/deploy_gate.go` — aspireBuildGate struct (ClaimFirst/Open/Fail/Wait)
+- `cli/azd/internal/cmd/deploy_gate_test.go` — 10 unit tests, all pass
+- `cli/azd/internal/cmd/deploy.go` — Enhanced deployServicesParallel with gate support
+- `cli/azd/resources/alpha_features.yaml` — Feature definition added
+
+### ✅ Task 2: deploy.continueOnError — IMPLEMENTED
+- `cli/azd/internal/cmd/deploy.go` — deployParallelContinueOnError method (WaitGroup + error slice)
+- `cli/azd/resources/alpha_features.yaml` — Feature definition added
+
+### ✅ Task 3: deploy.serviceLogs — IMPLEMENTED
+- `cli/azd/internal/cmd/deploy.go` — createServiceLogWriter + log directory creation
+- `cli/azd/resources/alpha_features.yaml` — Feature definition added
+- Logs written to `.azure/{env}/logs/deploy-{timestamp}/{service}.log`
