@@ -25,6 +25,7 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/contracts"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
+	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning/bicep"
 	"github.com/azure/azure-dev/cli/azd/pkg/input"
 	"github.com/azure/azure-dev/cli/azd/pkg/ioc"
 	"github.com/azure/azure-dev/cli/azd/pkg/output"
@@ -584,13 +585,21 @@ type layerResult struct {
 	skipped bool
 }
 
-// provisionLayersParallel provisions multiple infrastructure layers concurrently.
+// provisionLayersParallel provisions multiple infrastructure layers concurrently
+// with dependency-aware phased scheduling.
+//
+// It statically analyzes Bicep templates and parameter files to build a dependency
+// graph, then groups layers into phases using topological sort. Layers within a phase
+// have no inter-dependencies and run concurrently. After each phase completes,
+// deployment outputs are merged into the shared environment so that subsequent phases
+// can reference them.
+//
+// If dependency analysis fails (e.g., unreadable files), it falls back to launching
+// all layers in a single phase (the original behavior).
+//
 // Each layer gets its own provisioning.Manager and a cloned Environment to avoid
 // concurrent map writes (environment.Environment is not goroutine-safe).
 // The syncEnvManager serializes .env file writes across goroutines.
-//
-// After all layers complete, ServiceEventEnvUpdated is raised for each non-skipped layer
-// and the authoritative environment is saved.
 func (p *ProvisionAction) provisionLayersParallel(
 	ctx context.Context,
 	layers []provisioning.Options,
@@ -605,52 +614,21 @@ func (p *ProvisionAction) provisionLayersParallel(
 	// Display subscription and location once before parallel provisioning begins.
 	p.displaySubscriptionAndLocation(ctx)
 
+	// Analyze layer dependencies to determine execution phases.
+	phases, err := bicep.AnalyzeLayerDependencies(layers, p.projectConfig.Path, p.env)
+	if err != nil {
+		// Dependency analysis is best-effort. If it fails, fall back to running all
+		// layers in a single phase (the original parallel behavior).
+		log.Printf("layer dependency analysis failed, falling back to single-phase parallel: %v", err)
+		allIndices := make([]int, len(layers))
+		for i := range layers {
+			allIndices[i] = i
+		}
+		phases = [][]int{allIndices}
+	}
+
 	safeEnvManager := &syncEnvManager{Manager: p.envManager}
 	safeConsole := &syncConsole{Console: p.console}
-
-	results := make([]layerResult, len(layers))
-	g, gCtx := errgroup.WithContext(ctx)
-
-	// Collect ALL errors from goroutines, not just the first.
-	// errgroup.Wait() returns only the first non-nil error; we also accumulate
-	// errors so that if multiple layers fail, all failures are reported.
-	var errsMu sync.Mutex
-	var errs []error
-
-	// Optional concurrency limit from env var (mirrors deploy.parallel pattern).
-	if limit := os.Getenv("AZD_PROVISION_CONCURRENCY"); limit != "" {
-		if n, err := strconv.Atoi(limit); err == nil && n > 0 {
-			g.SetLimit(n)
-		} else {
-			log.Printf("invalid AZD_PROVISION_CONCURRENCY value %q: %v", limit, err)
-		}
-	}
-
-	for i, layer := range layers {
-		layer.IgnoreDeploymentState = p.flags.ignoreDeploymentState
-
-		g.Go(func() error {
-			result, err := p.provisionSingleLayer(gCtx, layer, safeEnvManager, safeConsole)
-			results[i] = result
-			if err != nil {
-				errsMu.Lock()
-				errs = append(errs, err)
-				errsMu.Unlock()
-				return err
-			}
-			return nil
-		})
-	}
-
-	// Wait preserves errgroup's context cancellation. Then combine all collected errors.
-	_ = g.Wait()
-	if combined := multierr.Combine(errs...); combined != nil {
-		return false, p.wrapProvisionError(combined)
-	}
-
-	// All layers succeeded. Merge deployment outputs into the real environment and
-	// raise ServiceEventEnvUpdated for each non-skipped layer.
-	allSkipped := true
 
 	// Resolve stable services once — the set doesn't change between layers.
 	servicesStable, err := p.importManager.ServiceStable(ctx, p.projectConfig)
@@ -658,36 +636,81 @@ func (p *ProvisionAction) provisionLayersParallel(
 		return false, err
 	}
 
-	for _, r := range results {
-		if r.skipped {
-			continue
-		}
-		allSkipped = false
+	allSkipped := true
 
-		// Guard against nil deploy result — only update environment and raise events
-		// when a deployment actually produced outputs.
-		if r.deploy == nil || r.deploy.Deployment == nil {
-			continue
+	// Execute phases sequentially. Within each phase, layers run concurrently.
+	for _, phase := range phases {
+		phaseResults := make([]layerResult, len(phase))
+		g, gCtx := errgroup.WithContext(ctx)
+
+		// Collect ALL errors from goroutines, not just the first.
+		var errsMu sync.Mutex
+		var errs []error
+
+		// Optional concurrency limit from env var (mirrors deploy.parallel pattern).
+		if limit := os.Getenv("AZD_PROVISION_CONCURRENCY"); limit != "" {
+			if n, parseErr := strconv.Atoi(limit); parseErr == nil && n > 0 {
+				g.SetLimit(n)
+			} else {
+				log.Printf("invalid AZD_PROVISION_CONCURRENCY value %q: %v", limit, parseErr)
+			}
 		}
 
-		if err := provisioning.UpdateEnvironment(
-			ctx, r.deploy.Deployment.Outputs, p.env, p.envManager,
-		); err != nil {
-			return false, fmt.Errorf("updating environment from layer %q: %w", r.layer.Name, err)
+		for j, layerIdx := range phase {
+			layer := layers[layerIdx]
+			layer.IgnoreDeploymentState = p.flags.ignoreDeploymentState
+
+			g.Go(func() error {
+				result, err := p.provisionSingleLayer(gCtx, layer, safeEnvManager, safeConsole)
+				phaseResults[j] = result
+				if err != nil {
+					errsMu.Lock()
+					errs = append(errs, err)
+					errsMu.Unlock()
+					return err
+				}
+				return nil
+			})
 		}
 
-		for _, svc := range servicesStable {
-			eventArgs := project.ServiceLifecycleEventArgs{
-				Project:        p.projectConfig,
-				Service:        svc,
-				ServiceContext: project.NewServiceContext(),
-				Args: map[string]any{
-					"bicepOutput": r.deploy.Deployment.Outputs,
-				},
+		// Wait preserves errgroup's context cancellation. Then combine all collected errors.
+		_ = g.Wait()
+		if combined := multierr.Combine(errs...); combined != nil {
+			return false, p.wrapProvisionError(combined)
+		}
+
+		// Phase complete. Merge deployment outputs into the authoritative environment
+		// so that subsequent phases can reference them via readEnvironmentVariable()
+		// or ${VAR} substitutions.
+		for _, r := range phaseResults {
+			if r.skipped {
+				continue
+			}
+			allSkipped = false
+
+			if r.deploy == nil || r.deploy.Deployment == nil {
+				continue
 			}
 
-			if err := svc.RaiseEvent(ctx, project.ServiceEventEnvUpdated, eventArgs); err != nil {
-				return false, err
+			if err := provisioning.UpdateEnvironment(
+				ctx, r.deploy.Deployment.Outputs, p.env, p.envManager,
+			); err != nil {
+				return false, fmt.Errorf("updating environment from layer %q: %w", r.layer.Name, err)
+			}
+
+			for _, svc := range servicesStable {
+				eventArgs := project.ServiceLifecycleEventArgs{
+					Project:        p.projectConfig,
+					Service:        svc,
+					ServiceContext: project.NewServiceContext(),
+					Args: map[string]any{
+						"bicepOutput": r.deploy.Deployment.Outputs,
+					},
+				}
+
+				if err := svc.RaiseEvent(ctx, project.ServiceEventEnvUpdated, eventArgs); err != nil {
+					return false, err
+				}
 			}
 		}
 	}
