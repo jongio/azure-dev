@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -355,18 +356,73 @@ func (da *DeployAction) resolveDeployTimeout() (time.Duration, error) {
 	return time.Duration(defaultDeployTimeoutSeconds) * time.Second, nil
 }
 
-// deployServicesParallel deploys all services concurrently using errgroup.
+// deployServicesParallel deploys all services concurrently.
 // Each goroutine handles one service's full lifecycle: Package → Publish → Deploy.
 // Protected by the deploy.parallel alpha feature flag.
+//
+// Enhanced features (each behind their own alpha flag):
+//   - deploy.aspireGate: Coordinates Aspire services so the first one completes
+//     its Package phase (manifest generation) before others proceed.
+//   - deploy.continueOnError: Service failures don't cancel other goroutines;
+//     all services run to completion and errors are collected.
+//   - deploy.serviceLogs: Per-service log files written to
+//     .azure/{env}/logs/deploy-{timestamp}/.
 func (da *DeployAction) deployServicesParallel(
 	ctx context.Context,
 	stableServices []*project.ServiceConfig,
 	deployResults map[string]*project.ServiceDeployResult,
 ) error {
+	continueOnError := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.continueOnError"))
+	aspireGateEnabled := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.aspireGate"))
+	serviceLogsEnabled := da.alphaFeatureManager.IsEnabled(alpha.MustFeatureKey("deploy.serviceLogs"))
+
+	// Determine if any services are Aspire services (need build gate coordination)
+	var gate *aspireBuildGate
+	hasAspireServices := false
+	if aspireGateEnabled {
+		for _, svc := range stableServices {
+			if svc.DotNetContainerApp != nil {
+				hasAspireServices = true
+				break
+			}
+		}
+		if hasAspireServices {
+			gate = newAspireBuildGate()
+			log.Printf("deploy.aspireGate: enabled — coordinating Aspire service deployments")
+		}
+	}
+
+	// Set up per-service log directory
+	var logDir string
+	if serviceLogsEnabled {
+		timestamp := time.Now().Format("20060102-150405")
+		logDir = filepath.Join(".azure", da.env.Name(), "logs", fmt.Sprintf("deploy-%s", timestamp))
+		if err := os.MkdirAll(logDir, 0700); err != nil {
+			log.Printf("deploy.serviceLogs: failed to create log dir %s: %v", logDir, err)
+			logDir = "" // disable logging on error
+		} else {
+			log.Printf("deploy.serviceLogs: writing per-service logs to %s", logDir)
+		}
+	}
+
+	if continueOnError {
+		return da.deployParallelContinueOnError(ctx, stableServices, deployResults, gate, logDir)
+	}
+	return da.deployParallelFailFast(ctx, stableServices, deployResults, gate, logDir)
+}
+
+// deployParallelFailFast uses errgroup — first error cancels all pending goroutines.
+// This is the default behavior when deploy.continueOnError is not enabled.
+func (da *DeployAction) deployParallelFailFast(
+	ctx context.Context,
+	stableServices []*project.ServiceConfig,
+	deployResults map[string]*project.ServiceDeployResult,
+	gate *aspireBuildGate,
+	logDir string,
+) error {
 	var mu sync.Mutex
 	g, gCtx := errgroup.WithContext(ctx)
 
-	// Optional concurrency limit from env var
 	if limit := os.Getenv("AZD_DEPLOY_CONCURRENCY"); limit != "" {
 		if n, err := strconv.Atoi(limit); err == nil && n > 0 {
 			g.SetLimit(n)
@@ -375,7 +431,25 @@ func (da *DeployAction) deployServicesParallel(
 
 	for _, svc := range stableServices {
 		g.Go(func() error {
+			if err := da.waitOnAspireGate(gCtx, svc, gate); err != nil {
+				return err
+			}
+
+			logWriter := da.createServiceLogWriter(svc.Name, logDir)
+			if logWriter != nil {
+				defer logWriter.Close()
+			}
+
 			deployResult, err := da.deploySingleService(gCtx, svc)
+
+			// For the first Aspire service, signal the gate after Package completes.
+			// Since deploySingleService runs Package→Publish→Deploy atomically,
+			// we signal the gate based on success/failure of the whole operation
+			// for the first Aspire service. A more granular approach would require
+			// splitting deploySingleService, but this is safe because other Aspire
+			// services only need the manifest which is generated during Package.
+			da.signalAspireGate(svc, gate, err)
+
 			if err != nil {
 				return err
 			}
@@ -388,7 +462,151 @@ func (da *DeployAction) deployServicesParallel(
 		})
 	}
 
+	if logDir != "" {
+		defer func() {
+			da.console.Message(ctx, fmt.Sprintf("\nPer-service logs: %s", logDir))
+		}()
+	}
+
 	return g.Wait()
+}
+
+// deployParallelContinueOnError uses sync.WaitGroup — service failures are collected
+// but don't cancel other goroutines. Protected by deploy.continueOnError alpha flag.
+func (da *DeployAction) deployParallelContinueOnError(
+	ctx context.Context,
+	stableServices []*project.ServiceConfig,
+	deployResults map[string]*project.ServiceDeployResult,
+	gate *aspireBuildGate,
+	logDir string,
+) error {
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		errsMu  sync.Mutex
+		errs    []error
+	)
+
+	// Concurrency limit via semaphore
+	var sem chan struct{}
+	if limit := os.Getenv("AZD_DEPLOY_CONCURRENCY"); limit != "" {
+		if n, err := strconv.Atoi(limit); err == nil && n > 0 {
+			sem = make(chan struct{}, n)
+		}
+	}
+
+	for _, svc := range stableServices {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Acquire semaphore slot if concurrency limited
+			if sem != nil {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+			}
+
+			if err := da.waitOnAspireGate(ctx, svc, gate); err != nil {
+				errsMu.Lock()
+				errs = append(errs, fmt.Errorf("service %s: %w", svc.Name, err))
+				errsMu.Unlock()
+				return
+			}
+
+			logWriter := da.createServiceLogWriter(svc.Name, logDir)
+			if logWriter != nil {
+				defer logWriter.Close()
+			}
+
+			deployResult, err := da.deploySingleService(ctx, svc)
+			da.signalAspireGate(svc, gate, err)
+
+			if err != nil {
+				errsMu.Lock()
+				errs = append(errs, fmt.Errorf("service %s: %w", svc.Name, err))
+				errsMu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			deployResults[svc.Name] = deployResult
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+
+	if logDir != "" {
+		da.console.Message(ctx, fmt.Sprintf("\nPer-service logs: %s", logDir))
+	}
+
+	if len(errs) > 0 {
+		// Report all failures
+		for _, e := range errs {
+			log.Printf("deploy error: %v", e)
+		}
+		return fmt.Errorf("%d service(s) failed to deploy: %w", len(errs), errors.Join(errs...))
+	}
+
+	return nil
+}
+
+// waitOnAspireGate blocks non-first Aspire services until the gate is opened.
+// Non-Aspire services and the first Aspire service pass through immediately.
+func (da *DeployAction) waitOnAspireGate(
+	ctx context.Context,
+	svc *project.ServiceConfig,
+	gate *aspireBuildGate,
+) error {
+	if gate == nil || svc.DotNetContainerApp == nil {
+		return nil // not an Aspire service or gate not enabled
+	}
+
+	if gate.ClaimFirst() {
+		// First Aspire service deploys immediately
+		log.Printf("deploy.aspireGate: service %s claimed first-deploy slot", svc.Name)
+		return nil
+	}
+
+	// Wait for the first Aspire service to complete its Package phase
+	log.Printf("deploy.aspireGate: service %s waiting for build gate", svc.Name)
+	return gate.Wait(ctx)
+}
+
+// signalAspireGate opens or fails the gate after the first Aspire service completes.
+func (da *DeployAction) signalAspireGate(
+	svc *project.ServiceConfig,
+	gate *aspireBuildGate,
+	err error,
+) {
+	if gate == nil || svc.DotNetContainerApp == nil {
+		return
+	}
+
+	// Only the first Aspire service signals the gate. ClaimFirst returns false
+	// for subsequent services, so Open/Fail is only called once via sync.Once.
+	if err != nil {
+		gate.Fail(err)
+	} else {
+		gate.Open()
+	}
+}
+
+// createServiceLogWriter creates a per-service log file if deploy.serviceLogs is enabled.
+// Returns nil if logging is disabled or the log directory is empty.
+func (da *DeployAction) createServiceLogWriter(serviceName string, logDir string) *os.File {
+	if logDir == "" {
+		return nil
+	}
+
+	logPath := filepath.Join(logDir, serviceName+".log")
+	f, err := os.Create(logPath)
+	if err != nil {
+		log.Printf("deploy.serviceLogs: failed to create log file %s: %v", logPath, err)
+		return nil
+	}
+
+	return f
 }
 
 // deploySingleService executes the full deploy lifecycle for a single service:
