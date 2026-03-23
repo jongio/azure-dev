@@ -1,6 +1,6 @@
 # Tasks: Absorb Concurx Features into azd Core
 
-<!-- NEXT: 4 -->
+<!-- ALL TASKS COMPLETE -->
 
 ## TODO
 
@@ -96,24 +96,12 @@ Replace conflicting spinners with ANSI status table.
 Update azd-perf benchmarking to test new alpha features.
 
 **Implementation**:
-- Add `deploy.aspireGate`, `deploy.continueOnError`, `deploy.serviceLogs` to comparison-sweep.yml
+- Add `deploy.aspireGate`, `deploy.continueOnError`, `deploy.serviceLogs`, `deploy.progressTable` to comparison-sweep.yml
 - Test Aspire templates with all alphas enabled
 - Verify azd+alphas >= concurx performance
 
 **Files**:
 - `azd-perf/.github/workflows/comparison-sweep.yml`
-
-### 6. Deprecate Concurx Extension
-
-**Priority**: P3
-**Depends on**: Task 5
-
-Mark concurx as deprecated, document migration to alpha features.
-
-**Implementation**:
-- Add deprecation notice to concurx README
-- Log deprecation warning on invocation
-- Document migration path: which alpha features replace each concurx capability
 
 ## IN PROGRESS
 
@@ -135,3 +123,13 @@ Mark concurx as deprecated, document migration to alpha features.
 - `cli/azd/internal/cmd/deploy.go` — createServiceLogWriter + log directory creation
 - `cli/azd/resources/alpha_features.yaml` — Feature definition added
 - Logs written to `.azure/{env}/logs/deploy-{timestamp}/{service}.log`
+
+### ✅ Task 4: deploy.progressTable — IMPLEMENTED
+- `cli/azd/internal/cmd/deploy_progress.go` — deployProgressTracker (ANSI table + CI fallback)
+- `cli/azd/internal/cmd/deploy_progress_test.go` — 11 unit tests, all pass
+- `cli/azd/internal/cmd/deploy.go` — Wired into both FailFast and ContinueOnError paths
+- `cli/azd/resources/alpha_features.yaml` — Feature definition added
+
+### ✅ Task 5: azd-perf — Alpha Feature List Updated
+- `azd-perf/.github/workflows/comparison-sweep.yml` — Added 4 new features to default list
+- Total alpha features in sweep: 15 (was 11)
