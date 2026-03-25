@@ -359,6 +359,9 @@ func (c *AskerConsole) ShowPreviewer(ctx context.Context, options *ShowPreviewer
 }
 
 func (c *AskerConsole) StopPreviewer(ctx context.Context, keepLogs bool) {
+	if c.previewer == nil {
+		return
+	}
 	c.previewer.Stop(keepLogs)
 	c.previewer = nil
 	c.writer = c.defaultWriter
