@@ -54,6 +54,10 @@ func Parse(ctx context.Context, yamlContent string) (*ProjectConfig, error) {
 		)
 	}
 
+	if err := validateParsedConfig(&projectConfig); err != nil {
+		return nil, err
+	}
+
 	projectConfig.EventDispatcher = ext.NewEventDispatcher[ProjectLifecycleEventArgs]()
 
 	if projectConfig.RequiredVersions != nil && projectConfig.RequiredVersions.Azd != nil {
@@ -144,6 +148,77 @@ func Parse(ctx context.Context, yamlContent string) (*ProjectConfig, error) {
 	}
 
 	return &projectConfig, nil
+}
+
+// validateParsedConfig checks for nil entries in pointer-valued maps and slices after YAML
+// unmarshaling. YAML produces nil pointers when a map key or list entry has no value
+// (e.g., "web:" with only a comment), which would cause nil pointer dereference panics
+// during subsequent processing.
+//
+// The function validates Services, Resources, and Hooks at both project and service levels.
+// All problems are collected and returned in a single error so the user can fix them at once.
+func validateParsedConfig(config *ProjectConfig) error {
+	var problems []string
+
+	for key, svc := range config.Services {
+		if svc == nil {
+			problems = append(problems,
+				fmt.Sprintf("service '%s' has an empty definition; expected properties such as host, language, and project", key))
+			continue
+		}
+
+		problems = append(problems, validateHooks(svc.Hooks, "service '"+key+"'")...)
+	}
+
+	for key, res := range config.Resources {
+		if res == nil {
+			problems = append(problems,
+				fmt.Sprintf("resource '%s' has an empty definition; expected properties such as type", key))
+		}
+	}
+
+	problems = append(problems, validateHooks(config.Hooks, "")...)
+
+	if len(problems) > 0 {
+		// Sort for deterministic output regardless of map iteration order.
+		slices.Sort(problems)
+
+		return fmt.Errorf(
+			"azure.yaml contains invalid configuration:\n  - %s",
+			strings.Join(problems, "\n  - "),
+		)
+	}
+
+	return nil
+}
+
+// validateHooks checks a HooksConfig for nil entries. When scope is non-empty it is
+// prepended to each problem description to identify the parent (e.g., "service 'web'").
+func validateHooks(hooks HooksConfig, scope string) []string {
+	var problems []string
+
+	prefix := ""
+	if scope != "" {
+		prefix = scope + " "
+	}
+
+	for hookName, hookList := range hooks {
+		if hookList == nil {
+			problems = append(problems,
+				fmt.Sprintf("%shook '%s' has an empty definition; expected properties such as run or shell", prefix, hookName))
+			continue
+		}
+
+		for i, hook := range hookList {
+			if hook == nil {
+				problems = append(problems,
+					fmt.Sprintf("%shook '%s' entry %d has an empty definition; expected properties such as run or shell",
+						prefix, hookName, i+1))
+			}
+		}
+	}
+
+	return problems
 }
 
 // Load hydrates the azure.yaml configuring into an viewable structure

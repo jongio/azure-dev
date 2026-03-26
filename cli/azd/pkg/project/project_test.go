@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -260,6 +261,11 @@ func Test_Invalid_Project_File(t *testing.T) {
 				template: test-proj-template
 			services:
 		`,
+		"NilService":  "name: test-proj\nservices:\n  web:\n    # placeholder\n",
+		"NilResource": "name: test-proj\nresources:\n  mydb:\n    # placeholder\n",
+		"NilServiceAndResource": "name: test-proj\nservices:\n  web:\n    # placeholder\nresources:\n  mydb:\n    # placeholder\n",
+		"NilProjectHook": "name: test-proj\nhooks:\n  preprovision:\n",
+		"NilServiceHook": "name: test-proj\nservices:\n  web:\n    language: python\n    host: appservice\n    hooks:\n      predeploy:\n",
 	}
 
 	for name, test := range tests {
@@ -268,6 +274,111 @@ func Test_Invalid_Project_File(t *testing.T) {
 			require.Nil(t, projectConfig)
 			require.Error(t, err)
 		})
+	}
+}
+
+func TestNilDefinitionsReportAllErrors(t *testing.T) {
+	yamlContent := "name: test-proj\nservices:\n  web:\n    # empty\nresources:\n  mydb:\n    # empty\n"
+	projectConfig, err := Parse(context.Background(), yamlContent)
+	require.Nil(t, projectConfig)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "service 'web'")
+	require.Contains(t, err.Error(), "resource 'mydb'")
+}
+
+func TestValidateParsedConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		yaml     string
+		expected []string
+	}{
+		{
+			name:     "NilProjectLevelHook",
+			yaml:     "name: test-proj\nhooks:\n  preprovision:\n",
+			expected: []string{"hook 'preprovision'"},
+		},
+		{
+			name:     "NilServiceLevelHook",
+			yaml:     "name: test-proj\nservices:\n  web:\n    language: python\n    host: appservice\n    hooks:\n      predeploy:\n",
+			expected: []string{"service 'web' hook 'predeploy'"},
+		},
+		{
+			name: "NilHookEntryInArray",
+			yaml: "name: test-proj\nhooks:\n  preprovision:\n    - run: echo first\n    -\n",
+			expected: []string{
+				"hook 'preprovision' entry 2 has an empty definition",
+			},
+		},
+		{
+			name: "MixedNilDefinitions",
+			yaml: "name: test-proj\nhooks:\n  preprovision:\nservices:\n  api:\n    # empty\nresources:\n  db:\n    # empty\n",
+			expected: []string{
+				"service 'api'",
+				"resource 'db'",
+				"hook 'preprovision'",
+			},
+		},
+		{
+			name: "MultipleNilServices",
+			yaml: "name: test-proj\nservices:\n  web:\n  api:\n  worker:\n",
+			expected: []string{
+				"service 'web'",
+				"service 'api'",
+				"service 'worker'",
+			},
+		},
+		{
+			name: "NilServiceSkipsHookCheck",
+			yaml: "name: test-proj\nservices:\n  web:\n",
+			expected: []string{
+				"service 'web' has an empty definition",
+			},
+		},
+		{
+			name: "ErrorMessagesAreActionable",
+			yaml: "name: test-proj\nservices:\n  web:\nresources:\n  db:\nhooks:\n  preprovision:\n",
+			expected: []string{
+				"expected properties such as host",
+				"expected properties such as type",
+				"expected properties such as run or shell",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projectConfig, err := Parse(context.Background(), tt.yaml)
+			require.Nil(t, projectConfig)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "azure.yaml contains invalid configuration")
+			for _, expected := range tt.expected {
+				require.Contains(t, err.Error(), expected)
+			}
+		})
+	}
+}
+
+func TestValidateParsedConfigSortedOutput(t *testing.T) {
+	// Verify that errors are sorted alphabetically for deterministic output.
+	// Run multiple times to guard against map iteration order variance.
+	yaml := "name: test-proj\nservices:\n  zz-last:\n  mm-middle:\n  aa-first:\n  dd-fourth:\n  qq-fifth:\n"
+
+	for i := 0; i < 50; i++ {
+		_, err := Parse(context.Background(), yaml)
+		require.Error(t, err)
+
+		msg := err.Error()
+		aaIdx := strings.Index(msg, "aa-first")
+		ddIdx := strings.Index(msg, "dd-fourth")
+		mmIdx := strings.Index(msg, "mm-middle")
+		qqIdx := strings.Index(msg, "qq-fifth")
+		zzIdx := strings.Index(msg, "zz-last")
+
+		require.Greater(t, aaIdx, 0, "aa-first should be present")
+		require.Greater(t, ddIdx, aaIdx, "dd-fourth should come after aa-first")
+		require.Greater(t, mmIdx, ddIdx, "mm-middle should come after dd-fourth")
+		require.Greater(t, qqIdx, mmIdx, "qq-fifth should come after mm-middle")
+		require.Greater(t, zzIdx, qqIdx, "zz-last should come after qq-fifth")
 	}
 }
 
