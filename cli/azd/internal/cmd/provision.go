@@ -351,62 +351,9 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 		if seqErr != nil {
 			return nil, seqErr
 		}
-
-		if i == 0 && p.subManager != nil { // only display once
-			// Get Subscription to Display in Command Title Note
-			// Subscription and Location are ONLY displayed when they are available (found from env), otherwise, this message
-			// is not displayed.
-			// This needs to happen after the provisionManager initializes to make sure the env is ready for the provisioning
-			// provider
-			subscription, subErr := p.subManager.GetSubscription(ctx, p.env.GetSubscriptionId())
-			if subErr == nil {
-				location, err := p.subManager.GetLocation(ctx, p.env.GetSubscriptionId(), p.env.GetLocation())
-				var locationDisplay string
-				if err != nil {
-					log.Printf("failed getting location: %v", err)
-				} else {
-					locationDisplay = location.DisplayName
-				}
-
-				var subscriptionDisplay string
-				if v, err := strconv.ParseBool(os.Getenv("AZD_DEMO_MODE")); err == nil && v {
-					subscriptionDisplay = subscription.Name
-				} else {
-					subscriptionDisplay = fmt.Sprintf("%s (%s)", subscription.Name, subscription.Id)
-				}
-
-				p.console.MessageUxItem(ctx, &ux.EnvironmentDetails{
-					Subscription: subscriptionDisplay,
-					Location:     locationDisplay,
-				})
-
-			} else {
-				log.Printf("failed getting subscriptions. Skip displaying sub and location: %v", subErr)
-			}
-		} else {
-			// separation between each layer
-			p.console.Message(ctx, "")
-		}
-
-		if layer.Name != "" {
-			p.console.Message(ctx, fmt.Sprintf("Layer: %s", output.WithHighLightFormat(layer.Name)))
-		}
-		p.console.Message(ctx, "")
-
-		var deployResult *provisioning.DeployResult
-		var deployPreviewResult *provisioning.DeployPreviewResult
-
-		projectEventArgs := project.ProjectLifecycleEventArgs{
-			Project: p.projectConfig,
-		}
-
-		if p.alphaFeatureManager.IsEnabled(azapi.FeatureDeploymentStacks) {
-			p.console.WarnForFeature(ctx, azapi.FeatureDeploymentStacks)
-		}
-
-		// Do not raise pre/postprovision events in preview mode
+		// In preview mode, provisionLayersSequential already displayed the UX items.
+		// Return the preview ActionResult here since the caller owns the final response.
 		if previewMode {
-			// provisionLayersSequential already printed the preview UX items.
 			return &actions.ActionResult{
 				Message: &actions.ResultMessage{
 					Header: fmt.Sprintf(
@@ -422,62 +369,6 @@ func (p *ProvisionAction) Run(ctx context.Context) (_ *actions.ActionResult, run
 					),
 				},
 			}, nil
-		}
-
-		skipped := deployResult.SkippedReason == provisioning.DeploymentStateSkipped
-		allSkipped = allSkipped && skipped
-		if skipped {
-			// Simply continue here; message is printed in the provider implementation
-			continue
-		}
-
-		if deployResult.SkippedReason == provisioning.PreflightAbortedSkipped {
-			p.console.MessageUxItem(ctx, &ux.ActionResult{
-				SuccessMessage: "Provisioning was cancelled.",
-			})
-			return nil, internal.ErrAbortedByUser
-		}
-
-		servicesStable, err := p.importManager.ServiceStable(ctx, p.projectConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, svc := range servicesStable {
-			eventArgs := project.ServiceLifecycleEventArgs{
-				Project:        p.projectConfig,
-				Service:        svc,
-				ServiceContext: project.NewServiceContext(),
-				Args: map[string]any{
-					"bicepOutput": deployResult.Deployment.Outputs,
-				},
-			}
-
-			if err := svc.RaiseEvent(ctx, project.ServiceEventEnvUpdated, eventArgs); err != nil {
-				return nil, err
-			}
-		}
-
-		if p.formatter.Kind() == output.JsonFormat {
-			stateResult, err := p.provisionManager.State(ctx, nil)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"deployment succeeded but the deployment result is unavailable: %w",
-					multierr.Combine(err, err),
-				)
-			}
-
-			provisionResult := ProvisionResult{
-				State:      provisioning.NewEnvRefreshResultFromState(stateResult.State),
-				DurationMs: time.Since(startTime).Milliseconds(),
-			}
-
-			if err := p.formatter.Format(provisionResult, p.writer, nil); err != nil {
-				return nil, fmt.Errorf(
-					"deployment succeeded but the deployment result could not be displayed: %w",
-					multierr.Combine(err, err),
-				)
-			}
 		}
 	}
 
