@@ -4,6 +4,7 @@
 package project
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -197,4 +198,52 @@ func TestConstants(t *testing.T) {
 	assert.Equal(t, "53ca6127-db72-4b80-b1b0-d745d6d5456d", roleAzureAIUser)
 	assert.Equal(t, "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd", roleCognitiveServicesOpenAIUser)
 	assert.Equal(t, "3913510d-42f4-4e42-8a64-420c390055eb", roleMonitoringMetricsPublisher)
+}
+
+func TestIsCredentialAuthError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "unrelated error",
+			err:  fmt.Errorf("network timeout"),
+			want: false,
+		},
+		{
+			name: "AzureDeveloperCLICredential error",
+			err: fmt.Errorf(
+				"failed to list service principals: " +
+					"AzureDeveloperCLICredential: please run \"azd auth login\""),
+			want: true,
+		},
+		{
+			name: "azd auth login suggestion in error",
+			err:  fmt.Errorf("credential error: run azd auth login to fix"),
+			want: true,
+		},
+		{
+			name: "AADSTS error code",
+			err:  fmt.Errorf("AADSTS70043: The refresh token has expired"),
+			want: true,
+		},
+		{
+			name: "authentication_required error",
+			err:  fmt.Errorf("authentication_required: login needed"),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isCredentialAuthError(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

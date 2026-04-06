@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"azureaiagent/internal/exterrors"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/azure/azure-dev/cli/azd/pkg/azdext"
@@ -183,6 +185,16 @@ func ensureAgentIdentityRBACWithCred(
 	for attempt := range identityLookupMaxAttempts {
 		agentIdentities, err = discoverAgentIdentity(ctx, graphClient, displayName)
 		if err != nil {
+			if isCredentialAuthError(err) {
+				return exterrors.Auth(
+					exterrors.CodeRbacAuthFailed,
+					fmt.Sprintf(
+						"agent identity RBAC setup failed — Azure AD query requires "+
+							"a Microsoft Graph token that could not be acquired: %s", err),
+					"run 'azd auth login --scope https://graph.microsoft.com/.default' "+
+						"and re-run 'azd deploy'",
+				)
+			}
 			return fmt.Errorf("failed to discover agent identity: %w", err)
 		}
 		if len(agentIdentities) > 0 {
@@ -452,4 +464,17 @@ func extractSubscriptionID(resourceID string) string {
 		}
 	}
 	return ""
+}
+
+// isCredentialAuthError returns true when an error originates from the Azure Identity
+// library failing to acquire a token (e.g. expired login, missing scope consent).
+func isCredentialAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "AzureDeveloperCLICredential") ||
+		strings.Contains(msg, "azd auth login") ||
+		strings.Contains(msg, "authentication_required") ||
+		strings.Contains(msg, "AADSTS")
 }
