@@ -8,6 +8,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/azure/azure-dev/cli/azd/pkg/ext"
 	"github.com/azure/azure-dev/cli/azd/pkg/osutil"
@@ -37,40 +38,30 @@ func TestServiceConfigAddHandler(t *testing.T) {
 }
 
 func TestServiceConfigRemoveHandler(t *testing.T) {
-	ctx := context.Background()
 	service := getServiceConfig()
 	handler1Called := false
-	handler2Called := false
 
 	handler1 := func(ctx context.Context, args ServiceLifecycleEventArgs) error {
 		handler1Called = true
 		return nil
 	}
 
-	handler2 := func(ctx context.Context, args ServiceLifecycleEventArgs) error {
-		handler2Called = true
-		return nil
-	}
-
-	// Only handler 1 was registered
+	// Register handler with a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
 	err := service.AddHandler(ctx, ServiceEventDeploy, handler1)
 	require.Nil(t, err)
 
-	err = service.RemoveHandler(ctx, ServiceEventDeploy, handler1)
-	require.Nil(t, err)
+	// Cancel context to trigger removal
+	cancel()
+	time.Sleep(50 * time.Millisecond)
 
-	// Handler 2 wasn't registered so should error on remove
-	err = service.RemoveHandler(ctx, ServiceEventDeploy, handler2)
-	require.NotNil(t, err)
-
-	// No events are registered at the time event was raised
-	err = service.RaiseEvent(ctx, ServiceEventDeploy, ServiceLifecycleEventArgs{
+	// Handler should not be called after context cancellation
+	err = service.RaiseEvent(context.Background(), ServiceEventDeploy, ServiceLifecycleEventArgs{
 		Service:        service,
 		ServiceContext: NewServiceContext(),
 	})
 	require.Nil(t, err)
 	require.False(t, handler1Called)
-	require.False(t, handler2Called)
 }
 
 func TestServiceConfigWithMultipleEventHandlers(t *testing.T) {
