@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +18,27 @@ type exampleResponse struct {
 	A string `json:"a"`
 	B string `json:"b"`
 	C string `json:"c"`
+}
+
+func TestTunedTransport(t *testing.T) {
+	transport := TunedTransport()
+
+	require.NotNil(t, transport)
+	require.Equal(t, 200, transport.MaxIdleConns)
+	require.Equal(t, 50, transport.MaxConnsPerHost)
+	require.Equal(t, 50, transport.MaxIdleConnsPerHost)
+	require.Equal(t, 30*time.Second, transport.IdleConnTimeout)
+	require.False(t, transport.DisableKeepAlives)
+}
+
+func TestTunedTransport_DoesNotMutateDefault(t *testing.T) {
+	defaultTransport := http.DefaultTransport.(*http.Transport)
+	originalMaxIdle := defaultTransport.MaxIdleConnsPerHost
+
+	_ = TunedTransport()
+
+	// Verify the default transport was not mutated.
+	require.Equal(t, originalMaxIdle, defaultTransport.MaxIdleConnsPerHost)
 }
 
 func TestReadRawResponse(t *testing.T) {

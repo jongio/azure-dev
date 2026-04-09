@@ -15,10 +15,14 @@ import (
 	"time"
 )
 
-// Reads the raw HTTP response and attempt to convert it into the specified type
+// Reads the raw HTTP response and attempt to convert it into the specified type.
 // Typically used in conjunction with runtime.WithCaptureResponse(...) to get access to the underlying HTTP response of the
 // SDK API call.
+//
+// ReadRawResponse closes the response body. Callers should not close it separately.
 func ReadRawResponse[T any](response *http.Response) (*T, error) {
+	defer response.Body.Close()
+
 	data, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -32,6 +36,21 @@ func ReadRawResponse[T any](response *http.Response) (*T, error) {
 	}
 
 	return instance, nil
+}
+
+// TunedTransport returns an http.Transport cloned from http.DefaultTransport with
+// connection pooling parameters optimized for Azure CLI workloads. The key tunings
+// are MaxConnsPerHost and MaxIdleConnsPerHost (raised from Go defaults) to avoid
+// unnecessary TLS handshakes when making many concurrent requests to ARM endpoints.
+// With parallel execution, 8+ services may hit ARM simultaneously.
+func TunedTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 200
+	transport.MaxConnsPerHost = 50
+	transport.MaxIdleConnsPerHost = 50
+	transport.IdleConnTimeout = 30 * time.Second
+	transport.DisableKeepAlives = false // keep-alive must remain enabled for pooling
+	return transport
 }
 
 // TlsEnabledTransport returns a http.Transport that has TLS configured to use the provided
