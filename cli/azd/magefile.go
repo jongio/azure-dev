@@ -497,8 +497,9 @@ var excludedPlaybackTests = map[string]string{
 	// introduces legitimate new HTTP interactions (layer hash probes via
 	// calculateTemplateHash, resource-group existence checks). Must be
 	// re-recorded in record mode with live Azure credentials before merge.
-	"Test_DeploymentStacks":   "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash/RG probe interactions)",
-	"Test_CLI_ProvisionState": "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions)",
+	"Test_DeploymentStacks":                  "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash/RG probe interactions)",
+	"Test_CLI_ProvisionState":                "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions)",
+	"Test_CLI_InfraCreateAndDeleteUpperCase": "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions break --output json state retrieval)",
 }
 
 // discoverPlaybackTests scans the recordings directory for .yaml files and
