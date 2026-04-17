@@ -482,17 +482,17 @@ func runPlaybackTestsWithEnv(azdDir string, extraEnv []string) error {
 // excludedPlaybackTests lists tests whose recordings are known to be stale.
 // These are excluded from automatic playback so they don't block preflight.
 // Re-record the test to remove it from this list.
+//
+// Keep this list minimal — only include tests whose recordings are stale as a
+// direct consequence of the current branch's changes. Pre-existing failures
+// on main should be tracked by a GitHub issue and left OUT of this list so
+// they surface as preflight warnings (advisory). Masking unrelated failures
+// in this list lets real regressions merge undetected.
+//
+// Pre-existing stale recordings unrelated to this branch are tracked in
+// https://github.com/Azure/azure-dev/issues/7780 — do NOT re-add them here
+// without re-recording.
 var excludedPlaybackTests = map[string]string{
-	// Pre-existing stale recordings (fail on main as well - unrelated to feat/exegraph).
-	// Tracked for re-recording in a separate effort.
-	"Test_CLI_PreflightQuota_Sub_DefaultCapacity":   "stale recording (pre-existing, fails on main)",
-	"Test_CLI_PreflightQuota_Sub_DifferentLocation": "stale recording (pre-existing, fails on main)",
-	"Test_CLI_PreflightQuota_Sub_InvalidModelName":  "stale recording (pre-existing, fails on main)",
-	"Test_CLI_PreflightQuota_RG_DefaultCapacity":    "stale recording (pre-existing, fails on main)",
-	"Test_CLI_PreflightQuota_RG_InvalidModelName":   "stale recording (pre-existing, fails on main)",
-	"Test_CLI_PreflightQuota_RG_InvalidVersion":     "stale recording (pre-existing, fails on main)",
-	"Test_CLI_Deploy_SlotDeployment":                "stale recording (pre-existing, fails on main)",
-	"Test_CLI_VsServer":                             "stale recording (pre-existing, fails on main)",
 	// Recordings affected by feat/exegraph: the graph-driven up/provision path
 	// introduces legitimate new HTTP interactions (layer hash probes via
 	// calculateTemplateHash, resource-group existence checks). Must be
