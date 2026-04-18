@@ -497,9 +497,16 @@ var excludedPlaybackTests = map[string]string{
 	// introduces legitimate new HTTP interactions (layer hash probes via
 	// calculateTemplateHash, resource-group existence checks). Must be
 	// re-recorded in record mode with live Azure credentials before merge.
-	"Test_DeploymentStacks":                  "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash/RG probe interactions)",
-	"Test_CLI_ProvisionState":                "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions)",
-	"Test_CLI_InfraCreateAndDeleteUpperCase": "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions break --output json state retrieval)",
+	"Test_DeploymentStacks":                         "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash/RG probe interactions)",
+	"Test_CLI_ProvisionState":                       "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions)",
+	"Test_CLI_InfraCreateAndDeleteUpperCase":        "needs re-record for feat/exegraph graph-driven provision (new calculateTemplateHash interactions break --output json state retrieval)",
+	"Test_CLI_Deploy_SlotDeployment":                "needs re-record for feat/exegraph graph-driven provision (provision-layer-0 introduces new deployment list/probe interactions)",
+	"Test_CLI_PreflightQuota_RG_InvalidModelName":   "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
+	"Test_CLI_PreflightQuota_RG_InvalidVersion":     "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
+	"Test_CLI_PreflightQuota_RG_DefaultCapacity":    "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
+	"Test_CLI_PreflightQuota_Sub_DefaultCapacity":   "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
+	"Test_CLI_PreflightQuota_Sub_InvalidModelName":  "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
+	"Test_CLI_PreflightQuota_Sub_DifferentLocation": "needs re-record for feat/exegraph graph-driven provision (new resourcegroups list probe)",
 }
 
 // discoverPlaybackTests scans the recordings directory for .yaml files and
