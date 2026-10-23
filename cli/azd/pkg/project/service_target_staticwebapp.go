@@ -20,7 +20,10 @@ import (
 
 // TODO: Enhance for multi-environment support
 // https://github.com/Azure/azure-dev/issues/1152
+// The Azure API refers to the production environment as "default",
+// but the SWA CLI expects "production" for its --env flag.
 const DefaultStaticWebAppEnvironmentName = "default"
+const SwaCliProductionEnvironmentName = "production"
 
 type staticWebAppTarget struct {
 	env *environment.Environment
@@ -183,7 +186,7 @@ func (at *staticWebAppTarget) Deploy(
 		targetResource.SubscriptionId(),
 		targetResource.ResourceGroupName(),
 		targetResource.ResourceName(),
-		DefaultStaticWebAppEnvironmentName,
+		SwaCliProductionEnvironmentName,
 		*deploymentToken,
 		dOptions,
 		at.env.Environ())
